@@ -65,7 +65,7 @@ else
     echo "[3/4] downloading via HTTPS (archive.org)"
     local_s=$(ts)
     mkdir -p .dl
-    aria2c --seed-time=0 --console-log-level=warn --max-connection-per-server=16 -d .dl "$DB_URL"
+    aria2c --seed-time=0 --console-log-level=warn --max-connection-per-server=16 --split=16 -d .dl "$DB_URL"
     ARCHIVE=$(ls .dl/*.7z 2>/dev/null | head -1)
     if [ -z "$ARCHIVE" ]; then
       echo "[3/4] ERROR: no .7z found in download (.dl)"
@@ -78,7 +78,7 @@ else
     echo "[3/4] downloading via aria2c (magnet)..."
     local_s=$(ts)
     mkdir -p .dl
-    aria2c --seed-time=0 --console-log-level=warn -d .dl "$MAGNET"
+    aria2c --seed-time=0 --console-log-level=warn -x16 --split=16 -d .dl "$MAGNET"
     # magnet/torrent files are saved by their info-name, so pick up the archive by glob
     ARCHIVE=$(ls .dl/*.7z 2>/dev/null | head -1)
     if [ -z "$ARCHIVE" ]; then
