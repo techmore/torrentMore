@@ -24,6 +24,18 @@ fmt() { # seconds -> human
 
 echo "== torrentmore setup =="
 
+# 0) online tooling — aria2 lets setup pull the DB dump via torrent
+if ! command -v aria2c >/dev/null 2>&1; then
+  echo "[0/4] installing aria2 (torrent downloader)..."
+  if command -v brew >/dev/null 2>&1; then
+    brew install aria2
+  elif command -v apt-get >/dev/null 2>&1; then
+    sudo apt-get install -y aria2
+  else
+    echo "      ! install aria2 yourself (brew install aria2)" >&2
+  fi
+fi
+
 # 1) venv + deps
 if [ ! -x venv/bin/python ]; then
   echo "[1/4] creating python venv..."
