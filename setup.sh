@@ -14,7 +14,7 @@ cd "$(dirname "$0")"
 DB="tpb.sqlite"
 AUDIO_DB="audiobooks.sqlite"
 ARCHIVE="${ARCHIVE:-$(ls *.7z 2>/dev/null | head -1 || true)}"
-MAGNET="${MAGNET:-}"
+MAGNET="${MAGNET:-$(cat db.magnet 2>/dev/null || true)}"
 
 ts() { date +%s; }
 fmt() { # seconds -> human
