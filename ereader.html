@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EPUB Reader | TorrentMore.co</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <header class="bg-white border-b border-gray-200 sticky top-0 z-10">
+    <div class="container mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-2">
+        <i class="fas fa-book-open text-blue-500 text-2xl"></i>
+        <a href="/" class="text-xl font-bold hover:underline">TorrentMore.co</a>
+      </div>
+      <nav class="flex space-x-6">
+        <a href="/" class="text-gray-700 hover:text-blue-500 font-medium">Home</a>
+        <a href="/playlists.html" class="text-gray-700 hover:text-blue-500 font-medium">Playlists</a>
+      </nav>
+    </div>
+  </header>
+  <main class="container mx-auto px-4 py-8">
+  <div class="flex flex-col md:flex-row gap-4 max-w-4xl mx-auto">
+    <aside class="md:w-1/4 w-full bg-white rounded shadow p-4 h-[70vh] overflow-y-auto" id="toc-container" style="min-width:180px;">
+      <h2 class="font-semibold text-lg mb-2">Table of Contents</h2>
+      <ul id="toc-list" class="text-sm space-y-2"></ul>
+    </aside>
+    <div class="flex-1 bg-white rounded shadow p-6 flex flex-col max-w-3xl mx-auto relative">
+      <h1 class="text-2xl font-bold mb-4 flex items-center gap-2"><i class="fas fa-book-open"></i> EPUB Reader</h1>
+      <input type="file" id="file-input" accept=".epub" class="mb-4" />
+      <div id="viewer" class="border rounded h-[70vh] bg-gray-100 max-w-2xl mx-auto"></div>
+      <div id="error-message" class="hidden text-red-600 mt-4"></div>
+      <div id="page-info" class="text-center text-sm text-gray-700 mt-4 mb-2"></div>
+      <div id="nav-stats" class="text-center text-xs text-gray-500 mb-2"></div>
+      <div class="flex justify-between mt-4">
+        <button id="prev" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded" disabled>Previous</button>
+        <button id="next" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded" disabled>Next</button>
+      </div>
+      <!-- Extracted Page Text Dropdown -->
+      <div class="absolute top-0 right-0 mt-4 mr-4 w-80 max-w-full z-20">
+        <div id="text-dropdown" class="bg-white rounded shadow border">
+          <button id="toggle-text" class="w-full flex items-center justify-between px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 focus:outline-none">
+            <span>Extracted Page Text</span>
+            <span id="dropdown-arrow">&#x25BC;</span>
+          </button>
+          <div id="page-text" class="px-4 py-2 text-xs text-gray-700 max-h-72 overflow-y-auto border-t"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+  <script>
+    let book, rendition, currentLocation, displayed, total, currentFileKey;
+    const viewer = document.getElementById('viewer');
+    const prevBtn = document.getElementById('prev');
+    const nextBtn = document.getElementById('next');
+    const fileInput = document.getElementById('file-input');
+    const pageInfo = document.getElementById('page-info');
+    const navStats = document.getElementById('nav-stats');
+    const tocList = document.getElementById('toc-list');
+    const textDropdown = document.getElementById('text-dropdown');
+    const toggleTextBtn = document.getElementById('toggle-text');
+    const dropdownArrow = document.getElementById('dropdown-arrow');
+    const pageTextDiv = document.getElementById('page-text');
+    let textDropdownOpen = true;
+    // Save per-book progress using file name hash
+    function getNavStatsKey(file) {
+      return 'epub_reader_nav_stats_' + (file.name ? hashCode(file.name) : 'default');
+    }
+    function loadNavStats() {
+      if (currentFileKey) {
+        const navKey = getNavStatsKey({name: currentFileKey.replace('epub_reader_last_location_', '')});
+        const raw = localStorage.getItem(navKey);
+        if (raw) return JSON.parse(raw);
+      }
+      return {next: 0, prev: 0};
+    }
+    function saveNavStats(stats) {
+      if (currentFileKey) {
+        const navKey = getNavStatsKey({name: currentFileKey.replace('epub_reader_last_location_', '')});
+        localStorage.setItem(navKey, JSON.stringify(stats));
+      }
+    }
+    function getStorageKey(file) {
+      return 'epub_reader_last_location_' + (file.name ? hashCode(file.name) : 'default');
+    }
+    function hashCode(str) {
+      let hash = 0, i, chr;
+      if (str.length === 0) return hash;
+      for (i = 0; i < str.length; i++) {
+        chr = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + chr;
+        hash |= 0;
+      }
+      return hash;
+    }
+
+    function saveLocation(loc) {
+      if (loc && loc.start && loc.start.cfi && currentFileKey) {
+        localStorage.setItem(currentFileKey, loc.start.cfi);
+      }
+    }
+    function loadLocation() {
+      if (currentFileKey) return localStorage.getItem(currentFileKey);
+      return null;
+    }
+    // Dropdown toggle logic
+    toggleTextBtn.onclick = function() {
+      textDropdownOpen = !textDropdownOpen;
+      if (textDropdownOpen) {
+        pageTextDiv.style.display = '';
+        dropdownArrow.innerHTML = '&#x25BC;';
+      } else {
+        pageTextDiv.style.display = 'none';
+        dropdownArrow.innerHTML = '&#x25B2;';
+      }
+    };
+
+    fileInput.addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      const errorDiv = document.getElementById('error-message');
+      errorDiv.classList.add('hidden');
+      errorDiv.textContent = '';
+      pageInfo.textContent = '';
+      navStats.textContent = '';
+      prevBtn.disabled = true;
+      nextBtn.disabled = true;
+      tocList.innerHTML = '';
+      if (!file) return;
+      currentFileKey = getStorageKey(file);
+      // Load and show nav stats
+      let stats = loadNavStats();
+      navStats.textContent = `Next: ${stats.next} | Previous: ${stats.prev}`;
+      if (book) book.destroy();
+      book = ePub(file);
+      let failed = false;
+      let firstPage = true;
+      try {
+        rendition = book.renderTo('viewer', { width: '100%', height: '70vh' });
+        rendition.themes.default({
+          'body': {
+            'column-count': '1 !important',
+            'max-width': '38rem',
+            'margin': '0 auto',
+            'font-size': '1.1rem',
+            'line-height': '1.7',
+            'word-break': 'break-word',
+            'background': 'inherit'
+          },
+          'html': {
+            'background': 'inherit'
+          },
+          '*': {
+            'box-sizing': 'border-box'
+          }
+        });
+        // Always start at cover if new book
+        const last = loadLocation();
+        rendition.display(last || undefined).catch(err => {
+          failed = true;
+          errorDiv.textContent = 'Failed to load EPUB: ' + (err.message || err);
+          errorDiv.classList.remove('hidden');
+          console.error('EPUB.js display error:', err);
+        });
+        // Keyboard navigation
+        document.onkeydown = function(e) {
+          if (e.key === 'ArrowRight') nextBtn.click();
+          if (e.key === 'ArrowLeft') prevBtn.click();
+        };
+        // Table of Contents
+        book.loaded.navigation.then(function(toc) {
+          tocList.innerHTML = '';
+          toc.toc.forEach(function(chapter) {
+            const li = document.createElement('li');
+            const a = document.createElement('a');
+            a.href = '#';
+            a.textContent = chapter.label;
+            a.className = 'hover:underline text-blue-700';
+            a.onclick = function(ev) {
+              ev.preventDefault();
+              rendition.display(chapter.href);
+            };
+            li.appendChild(a);
+            tocList.appendChild(li);
+          });
+        });
+        // Locations/percentage progress
+        book.ready.then(function() {
+          rendition.spread('none'); // Force single-page mode after book is ready
+          book.locations.generate(1000).then(function() {
+            rendition.on('relocated', function(loc) {
+              // Extract and show text of current page
+              setTimeout(() => {
+                const contents = rendition.getContents();
+                if (contents && contents.length > 0 && contents[0].document) {
+                  // Get visible text content
+                  let text = contents[0].document.body ? contents[0].document.body.innerText : '';
+                  pageTextDiv.textContent = text.trim();
+                } else {
+                  pageTextDiv.textContent = '[No text found for this page]';
+                }
+              }, 50);
+
+              if (!failed) saveLocation(loc);
+              // Show percent progress
+              if (loc && loc.start && loc.start.cfi) {
+                const percent = Math.floor(book.locations.percentageFromCfi(loc.start.cfi) * 100);
+                pageInfo.textContent = `Progress: ${percent}%`;
+              } else {
+                pageInfo.textContent = '';
+              }
+              // Always enable navigation after book is ready
+              prevBtn.disabled = false;
+              nextBtn.disabled = false;
+
+            });
+          });
+        });
+      } catch (err) {
+        errorDiv.textContent = 'Critical error: ' + (err.message || err);
+        errorDiv.classList.remove('hidden');
+        console.error('EPUB.js critical error:', err);
+      }
+    });
+    prevBtn.onclick = () => {
+      if (!rendition || typeof rendition.prev !== 'function') {
+        const errorDiv = document.getElementById('error-message');
+        errorDiv.textContent = 'No book loaded.';
+        errorDiv.classList.remove('hidden');
+        return;
+      }
+      // Track prev click
+      let stats = loadNavStats();
+      stats.prev = (stats.prev || 0) + 1;
+      saveNavStats(stats);
+      navStats.textContent = `Next: ${stats.next} | Previous: ${stats.prev}`;
+      rendition.prev();
+    };
+    nextBtn.onclick = () => {
+      if (!rendition || typeof rendition.next !== 'function') {
+        const errorDiv = document.getElementById('error-message');
+        errorDiv.textContent = 'No book loaded.';
+        errorDiv.classList.remove('hidden');
+        return;
+      }
+      // Track next click
+      let stats = loadNavStats();
+      stats.next = (stats.next || 0) + 1;
+      saveNavStats(stats);
+      navStats.textContent = `Next: ${stats.next} | Previous: ${stats.prev}`;
+      rendition.next();
+    };
+
+  </script>
+</body>
+</html>

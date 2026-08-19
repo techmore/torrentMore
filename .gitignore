@@ -1,0 +1,17 @@
+# Databases / data — re-obtainable, never to git
+*.sqlite
+*.sqlite3
+*.db
+*.7z
+*.zip
+
+# uploads / runtime
+uploads/
+__MACOSX/
+.DS_Store
+
+# python
+__pycache__/
+*.py[cod]
+venv/
+.venv/

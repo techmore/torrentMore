@@ -1,0 +1,12 @@
+{
+  "name": "Sample Playlist",
+  "owner": "localhost",
+  "items": [
+    {
+      "name": "Atomic Habits",
+      "magnet": "magnet:?xt=urn:btih:EXAMPLE",
+      "category": "Books",
+      "added_at": "2025-04-15T09:32:00"
+    }
+  ]
+}

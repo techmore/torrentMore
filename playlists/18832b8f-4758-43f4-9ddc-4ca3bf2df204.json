@@ -1,0 +1,24 @@
+{
+  "name": "podcast-01",
+  "owner": "localhost",
+  "items": [
+    {
+      "name": "Mega Machines Series 1 Rise of the Bullet Train 720p x264 AAC HD",
+      "magnet": "magnet:?xt=urn:btih:54CAEB478BBA1E16BB75DF0FE396E7BCE8BF5CC1&dn=Mega%20Machines%20Series%201%20Rise%20of%20the%20Bullet%20Train%20720p%20x264%20AAC%20HD",
+      "category": "Video: HD - TV shows",
+      "added_at": "2025-04-15T10:15:02.282815"
+    },
+    {
+      "name": "Rise of the Machines_ A Cybernetic History by Thomas Rid EPUB",
+      "magnet": "magnet:?xt=urn:btih:52CB0AD00F33290EC400D0CA865400C77FEBBFB8&dn=Rise%20of%20the%20Machines_%20A%20Cybernetic%20History%20by%20Thomas%20Rid%20EPUB",
+      "category": "Other: E-books",
+      "added_at": "2025-04-15T10:32:41.117836"
+    },
+    {
+      "name": "Rise of the Machines: A Cybernetic History",
+      "magnet": "magnet:?xt=urn:btih:F0C4C4D9CF8453C3148CFCDF284D99A83A13BF12&dn=Rise%20of%20the%20Machines%3A%20A%20Cybernetic%20History",
+      "category": "Other: E-books",
+      "added_at": "2025-04-15T10:34:45.903784"
+    }
+  ]
+}

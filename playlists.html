@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Playlists | TorrentMore.co</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <header class="bg-white border-b border-gray-200 sticky top-0 z-10">
+    <div class="container mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-2">
+        <i class="fas fa-anchor text-blue-500 text-2xl"></i>
+        <a href="/" class="text-xl font-bold hover:underline">TorrentMore.co</a>
+      </div>
+      <nav class="flex space-x-6">
+        <a href="/" class="text-gray-700 hover:text-blue-500 font-medium">Home</a>
+        <a href="/playlists.html" class="text-blue-600 font-medium underline">Playlists</a>
+        <a href="/metrics" class="text-gray-700 hover:text-blue-500 font-medium">Metrics</a>
+      </nav>
+    </div>
+  </header>
+  <main class="container mx-auto px-4 py-8">
+    <h1 class="text-2xl font-bold mb-6">Your Playlists</h1>
+    <div id="playlists-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6"></div>
+    <div id="no-playlists" class="text-gray-400 text-center mt-12 hidden">No playlists found.</div>
+  </main>
+  <script>
+    async function fetchPlaylists() {
+      const res = await fetch('/api/playlists');
+      if (!res.ok) return [];
+      return await res.json();
+    }
+    function playlistCard(pl) {
+      let items = pl.preview || [];
+      let preview = '';
+      if (items.length) {
+        preview = '<ul class="mb-2">' + items.map(item =>
+          `<li class="text-xs text-gray-700 truncate flex items-center gap-2"><i class='fas fa-bookmark text-yellow-400'></i> <span title="${item.name}">${item.name}</span> <span class='text-gray-400'>(${item.category||''})</span></li>`
+        ).join('') + '</ul>';
+        if (pl.count > 3) preview += `<div class='text-xs text-gray-400'>+${pl.count-3} more</div>`;
+      } else {
+        preview = '<div class="text-xs text-gray-400 mb-2">No items yet.</div>';
+      }
+      return `
+        <div class="bg-white shadow rounded-lg p-5 flex flex-col justify-between h-full">
+          <div>
+            <div class="flex items-center gap-2 mb-2">
+              <i class="fas fa-list-alt text-blue-400 text-xl"></i>
+              <span class="font-semibold text-lg">${pl.name}</span>
+            </div>
+            <div class="text-xs text-gray-500 mb-1">Owner: ${pl.owner}</div>
+            <div class="text-xs text-gray-500 mb-2">${pl.count} item${pl.count===1?'':'s'}</div>
+            ${preview}
+          </div>
+          <button class="mt-4 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded focus:outline-none" onclick="window.location.href='/playlists/${pl.id}.html'">
+            View Playlist
+          </button>
+        </div>
+      `;
+    }
+    async function renderPlaylists() {
+      const grid = document.getElementById('playlists-grid');
+      const empty = document.getElementById('no-playlists');
+      grid.innerHTML = '';
+      const playlists = await fetchPlaylists();
+      if (!playlists.length) {
+        empty.classList.remove('hidden');
+        return;
+      }
+      empty.classList.add('hidden');
+      // Sort by last added (descending), fallback to name
+      playlists.sort((a,b) => {
+        if (b.last_added && a.last_added) return b.last_added.localeCompare(a.last_added);
+        return a.name.localeCompare(b.name);
+      });
+      playlists.forEach(pl => {
+        grid.innerHTML += playlistCard(pl);
+      });
+    }
+    renderPlaylists();
+  </script>
+</body>
+</html>

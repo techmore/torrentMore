@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TorrentMore.co | Metrics</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body { font-family: 'Space Grotesk', sans-serif; background: #f8f9fa; }
+    .metric-box { box-shadow: 0 4px 20px rgba(0,0,0,0.07); }
+  </style>
+</head>
+<body class="min-h-screen">
+  <header class="bg-white border-b border-gray-200 py-4 mb-10">
+    <div class="container mx-auto px-4 flex items-center justify-between">
+      <div class="flex items-center space-x-2">
+        <i class="fas fa-chart-bar text-blue-500 text-2xl"></i>
+        <h1 class="text-xl font-bold">TorrentMore.co Metrics</h1>
+      </div>
+      <a href="/" class="text-blue-600 hover:underline">← Back to Search</a>
+    </div>
+  </header>
+
+  <main class="container mx-auto px-4">
+    <div id="metrics-loading" class="text-center text-gray-400 py-8">Loading metrics...</div>
+    <div id="metrics-content" class="hidden">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+        <div class="metric-box bg-white rounded-lg p-6 flex flex-col items-center">
+          <span class="text-3xl font-bold text-blue-600" id="total-torrents">0</span>
+          <span class="text-gray-600 mt-2">Total Torrents</span>
+        </div>
+        <div class="metric-box bg-white rounded-lg p-6 flex flex-col items-center">
+          <span class="text-3xl font-bold text-green-600" id="avg-size">0</span>
+          <span class="text-gray-600 mt-2">Avg Size (MB)</span>
+        </div>
+        <div class="metric-box bg-white rounded-lg p-6 flex flex-col items-center">
+          <span class="text-3xl font-bold text-purple-600" id="total-size">0</span>
+          <span class="text-gray-600 mt-2">Total Size (GB)</span>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div>
+          <h2 class="text-lg font-semibold mb-4 text-gray-700">Top Categories</h2>
+          <ul id="top-categories" class="space-y-2"></ul>
+        </div>
+        <div>
+          <h2 class="text-lg font-semibold mb-4 text-gray-700">Top Uploaders</h2>
+          <ul id="top-uploaders" class="space-y-2"></ul>
+        </div>
+      </div>
+      <div class="mt-10">
+        <h2 class="text-lg font-semibold mb-4 text-gray-700">All Categories</h2>
+        <div class="max-h-64 overflow-y-auto bg-white rounded-lg shadow p-4 border border-gray-100">
+          <ul id="all-categories" class="space-y-1 text-sm"></ul>
+        </div>
+      </div>
+      <div class="mt-10">
+        <h2 class="text-lg font-semibold mb-4 text-gray-700">Unique Categories (A-Z)</h2>
+        <div class="max-h-64 overflow-y-auto bg-white rounded-lg shadow p-4 border border-gray-100">
+          <ul id="unique-categories" class="space-y-1 text-sm"></ul>
+        </div>
+      </div>
+    </div>
+    <div id="metrics-error" class="hidden text-center text-red-500 py-8">Error loading metrics.</div>
+  </main>
+
+  <script>
+    async function loadMetrics() {
+      document.getElementById('metrics-loading').classList.remove('hidden');
+      document.getElementById('metrics-content').classList.add('hidden');
+      document.getElementById('metrics-error').classList.add('hidden');
+      try {
+        let res = await fetch('/api/metrics/details');
+        if (!res.ok) throw new Error('API error');
+        let data = await res.json();
+        // Try fallback to /api/metrics for all_categories
+        let allCategories = [];
+        try {
+          const res2 = await fetch('/api/metrics');
+          if (res2.ok) {
+            const data2 = await res2.json();
+            allCategories = data2.all_categories || [];
+          }
+        } catch {}
+        if (!allCategories.length && data.all_categories) allCategories = data.all_categories;
+        document.getElementById('total-torrents').textContent = data.total_torrents.toLocaleString();
+        document.getElementById('avg-size').textContent = (data.avg_size/1024/1024).toFixed(2);
+        document.getElementById('total-size').textContent = (data.total_size/1024/1024/1024).toFixed(2);
+        const catList = document.getElementById('top-categories');
+        catList.innerHTML = '';
+        data.top_categories.forEach(cat => {
+          const li = document.createElement('li');
+          li.textContent = `${cat.name}: ${cat.count.toLocaleString()}`;
+          catList.appendChild(li);
+        });
+        const upList = document.getElementById('top-uploaders');
+        upList.innerHTML = '';
+        data.top_uploaders.forEach(up => {
+          const li = document.createElement('li');
+          li.textContent = `${up.username}: ${up.count.toLocaleString()}`;
+          upList.appendChild(li);
+        });
+        // All categories
+        const allCatList = document.getElementById('all-categories');
+        if (allCatList) {
+          allCatList.innerHTML = '';
+          allCategories.forEach(cat => {
+            const li = document.createElement('li');
+            li.textContent = `${cat.name || '(none)'}: ${cat.count.toLocaleString()}`;
+            allCatList.appendChild(li);
+          });
+        }
+        document.getElementById('metrics-loading').classList.add('hidden');
+        document.getElementById('metrics-content').classList.remove('hidden');
+      } catch {
+        document.getElementById('metrics-loading').classList.add('hidden');
+        document.getElementById('metrics-error').classList.remove('hidden');
+      }
+    }
+    loadMetrics();
+  </script>
+</body>
+</html>

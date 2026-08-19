@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TorrentMore.co | Torrent Search & Restore Index</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background-color: #f8f9fa;
+            color: #1a1a1a;
+        }
+        
+        .search-box {
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        }
+        
+        .category-btn {
+            transition: all 0.2s ease;
+        }
+        
+        .category-btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .torrent-card {
+            transition: all 0.2s ease;
+            border-left: 4px solid transparent;
+        }
+        
+        .torrent-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-left-color: #3b82f6;
+        }
+        
+        .file-type-icon {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+        }
+        
+        .animate-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- Header -->
+    <header class="bg-white border-b border-gray-200 sticky top-0 z-10">
+  <div class="container mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center space-x-2">
+      <i class="fas fa-anchor text-blue-500 text-2xl"></i>
+      <h1 class="text-xl font-bold">TorrentMore.co</h1>
+    </div>
+    <nav class="hidden md:flex space-x-6">
+      <a href="#" id="nav-browse" class="text-gray-700 hover:text-blue-500 font-medium">Browse</a>
+      <a href="#" id="nav-recent" class="text-gray-700 hover:text-blue-500 font-medium">Recent</a>
+      <a href="#" id="nav-top" class="text-gray-700 hover:text-blue-500 font-medium">Top</a>
+      <a href="#" id="nav-playlists" class="text-gray-700 hover:text-blue-500 font-medium">Playlists</a>
+      <a href="/audiobook-full.html" class="text-gray-700 hover:text-blue-500 font-medium">Audiobooks</a>
+      <a href="#" id="nav-submit" class="text-gray-700 hover:text-blue-500 font-medium">Submit</a>
+      <a href="/metrics" class="text-blue-600 hover:underline font-medium">Metrics</a>
+    </nav>
+    <div class="flex items-center space-x-4">
+      <button class="p-2 text-gray-500 hover:text-blue-500">
+        <i class="fas fa-search"></i>
+      </button>
+      <button class="md:hidden p-2 text-gray-500 hover:text-blue-500">
+        <i class="fas fa-bars"></i>
+      </button>
+    </div>
+  </div>
+</header>
+
+    <!-- Hero Section -->
+    <section class="bg-gradient-to-r from-blue-50 to-indigo-50 py-12">
+        <div class="container mx-auto px-4">
+            <div class="max-w-3xl mx-auto text-center">
+                <h2 class="text-3xl md:text-4xl font-bold mb-4">The Open Knowledge Library</h2>
+                <p class="text-gray-600 mb-8">Discover and share books, podcasts, research papers, and educational resources</p>
+                
+                <!-- Search Box -->
+                <div class="search-box bg-white rounded-lg p-1 max-w-2xl mx-auto flex items-center gap-2">
+  <input type="text" placeholder="Search for books, podcasts, papers..." 
+         class="flex-grow px-4 py-3 rounded-l-lg focus:outline-none">
+  <select id="category-group-select" class="border-l border-gray-200 px-3 bg-gray-50 text-gray-600 focus:outline-none rounded-none">
+    <option value="">All Categories</option>
+    <option value="Audio">Audio</option>
+    <option value="Video">Video</option>
+    <option value="Other">Other</option>
+    <option value="Games">Games</option>
+    <option value="Applications">Applications</option>
+    <option value="Porn">Porn</option>
+  </select>
+  <select id="category-sub-select" class="border-l border-gray-200 px-3 bg-gray-50 text-gray-600 focus:outline-none rounded-none">
+    <option value="">All Subcategories</option>
+  </select>
+  <script src="https://cdn.jsdelivr.net/npm/webtorrent@latest/webtorrent.min.js"></script>
+  <script>
+    // --- Two-level dropdown logic ---
+    let groupToCategories = {};
+    async function populateSubcategories() {
+      const group = document.getElementById('category-group-select').value;
+      const subSelect = document.getElementById('category-sub-select');
+      // Clear subcategory options
+      subSelect.innerHTML = '<option value="">All Subcategories</option>';
+      if (!group) return;
+      // Fetch unique categories if not already loaded
+      if (Object.keys(groupToCategories).length === 0) {
+        const res = await fetch('/api/metrics');
+        const data = await res.json();
+        const categories = data.unique_categories || [];
+        categories.forEach(cat => {
+          if (!cat) return;
+          const parts = cat.split(':');
+          let prefix = parts.length > 1 ? parts[0].trim() : 'Other';
+          if (!groupToCategories[prefix]) groupToCategories[prefix] = [];
+          groupToCategories[prefix].push(cat);
+        });
+      }
+      // Populate subcategories for selected group
+      (groupToCategories[group] || []).forEach(cat => {
+        const option = document.createElement('option');
+        option.value = cat;
+        option.textContent = cat.split(':')[1]?.trim() || cat;
+        subSelect.appendChild(option);
+      });
+    }
+
+    function getSelectedGroup() {
+      return document.getElementById('category-group-select').value;
+    }
+    function getSelectedSubcategory() {
+      return document.getElementById('category-sub-select').value;
+    }
+    // Ensure setToggle is defined
+    if (typeof setToggle !== 'function') {
+      function setToggle() {}
+    }
+  </script>
+  <label for="adult-toggle" class="flex items-center text-xs text-gray-600 ml-2">
+    <input type="checkbox" id="adult-toggle" class="mr-1 accent-blue-500" aria-label="Include Adult Content">
+    Include Adult
+  </label>
+  <button class="bg-blue-500 text-white px-6 py-3 rounded-r-lg hover:bg-blue-600 transition">
+    <i class="fas fa-search mr-2"></i> Search
+  </button>
+</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8">
+        <!-- Categories -->
+        <div class="mb-10">
+            <h3 class="text-lg font-semibold mb-4 text-gray-700">Browse by Category</h3>
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
+  <button type="button" class="category-btn bg-white rounded-lg p-4 flex flex-col items-center hover:shadow-md quick-search-btn" data-query="Books">
+    <div class="file-type-icon bg-blue-100 text-blue-500 mb-2">
+      <i class="fas fa-book text-xl"></i>
+    </div>
+    <span class="text-sm font-medium">Books</span>
+  </button>
+  <button type="button" class="category-btn bg-white rounded-lg p-4 flex flex-col items-center hover:shadow-md quick-search-btn" data-query="Podcasts">
+    <div class="file-type-icon bg-purple-100 text-purple-500 mb-2">
+      <i class="fas fa-podcast text-xl"></i>
+    </div>
+    <span class="text-sm font-medium">Podcasts</span>
+  </button>
+  <button type="button" class="category-btn bg-white rounded-lg p-4 flex flex-col items-center hover:shadow-md quick-search-btn" data-query="Movies">
+    <div class="file-type-icon bg-red-100 text-red-500 mb-2">
+      <i class="fas fa-film text-xl"></i>
+    </div>
+    <span class="text-sm font-medium">Movies</span>
+  </button>
+  <button type="button" class="category-btn bg-white rounded-lg p-4 flex flex-col items-center hover:shadow-md quick-search-btn" data-query="TV">
+    <div class="file-type-icon bg-yellow-100 text-yellow-500 mb-2">
+      <i class="fas fa-tv text-xl"></i>
+    </div>
+    <span class="text-sm font-medium">TV</span>
+  </button>
+  <button type="button" class="category-btn bg-white rounded-lg p-4 flex flex-col items-center hover:shadow-md quick-search-btn" data-query="Comics">
+    <div class="file-type-icon bg-pink-100 text-pink-500 mb-2">
+      <i class="fas fa-book-open text-xl"></i>
+    </div>
+    <span class="text-sm font-medium">Comics</span>
+  </button>
+  <button type="button" class="category-btn bg-white rounded-lg p-4 flex flex-col items-center hover:shadow-md quick-search-btn" data-query="Games">
+    <div class="file-type-icon bg-indigo-100 text-indigo-500 mb-2">
+      <i class="fas fa-gamepad text-xl"></i>
+    </div>
+    <span class="text-sm font-medium">Games</span>
+  </button>
+  <button type="button" class="category-btn bg-white rounded-lg p-4 flex flex-col items-center hover:shadow-md quick-search-btn" data-query="Emulator">
+    <div class="file-type-icon bg-gray-100 text-gray-500 mb-2">
+      <i class="fas fa-microchip text-xl"></i>
+    </div>
+    <span class="text-sm font-medium">Emulator</span>
+  </button>
+  <button type="button" class="category-btn bg-white rounded-lg p-4 flex flex-col items-center hover:shadow-md quick-search-btn" data-query="Courses">
+    <div class="file-type-icon bg-green-100 text-green-500 mb-2">
+      <i class="fas fa-graduation-cap text-xl"></i>
+    </div>
+    <span class="text-sm font-medium">Courses</span>
+  </button>
+</div>
+        </div>
+
+        <!-- Recent Uploads -->
+        <div class="mb-10" id="recent-uploads-section">
+  <div class="flex justify-between items-center mb-4">
+    <div class="flex items-center gap-4">
+      <h3 class="text-lg font-semibold text-gray-700">Browse Torrents</h3>
+      <div id="toggle-group" class="flex gap-1 ml-2">
+        <button id="toggle-recent" class="px-3 py-1 rounded-l bg-blue-500 text-white font-medium focus:outline-none">Recent</button>
+        <button id="toggle-top" class="px-3 py-1 rounded-r bg-gray-200 text-gray-700 font-medium focus:outline-none">Top</button>
+      </div>
+    </div>
+    <span id="metrics-summary" class="text-sm text-gray-500"></span>
+  </div>
+  <div class="flex items-center gap-2 mb-2">
+    <label for="sort-select" class="text-sm text-gray-600">Browse by:</label>
+    <select id="sort-select" class="border px-2 py-1 rounded text-sm bg-gray-50">
+      <option value="relevance">Relevance</option>
+      <option value="active">Active</option>
+    </select>
+  </div>
+  <div id="results-loading" class="text-center text-gray-400 py-8 hidden">
+    <i class="fas fa-spinner fa-spin text-2xl"></i> Loading...
+  </div>
+  <div id="results-empty" class="text-center text-gray-400 py-8 hidden">No torrents found.</div>
+  <div class="flex items-center justify-between mb-2">
+    <div id="results-count" class="text-sm text-gray-500"></div>
+    <div class="flex items-center gap-2">
+      <button id="toggle-list" class="px-2 py-1 bg-gray-200 rounded hover:bg-blue-100" title="List view"><i class="fas fa-list"></i></button>
+      <button id="toggle-grid" class="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600" title="Grid view"><i class="fas fa-th"></i></button>
+    </div>
+  </div>
+  <div id="results-grid" class="grid md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+  <div id="pagination" class="flex justify-center items-center gap-2 mt-6"></div>
+</div>
+                        <h4 class="font-medium mb-1">Attention Is All You Need</h4>
+                        <p class="text-sm text-gray-500 mb-2">Vaswani et al. • PDF</p>
+                        <div class="flex items-center text-xs text-gray-400">
+                            <span class="mr-3"><i class="fas fa-upload mr-1"></i> 3 days ago</span>
+                            <span><i class="fas fa-download mr-1"></i> 2.1K</span>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        <!-- Top Downloads -->
+        <div class="mb-10">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-semibold text-gray-700">Top Downloads This Week</h3>
+                <a href="#" class="text-sm text-blue-500 hover:underline">View All</a>
+            </div>
+            
+            <div class="bg-white rounded-lg overflow-hidden">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Size</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Downloads</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Age</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        <tr class="hover:bg-gray-50 cursor-pointer">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div class="file-type-icon bg-blue-100 text-blue-500 mr-3">
+                                        <i class="fas fa-book"></i>
+                                    </div>
+                                    <div>
+                                        <div class="font-medium">Atomic Habits</div>
+                                        <div class="text-sm text-gray-500">James Clear</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">EPUB, PDF</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">12.4 MB</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">8,742</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">1 week</td>
+                        </tr>
+                        <tr class="hover:bg-gray-50 cursor-pointer">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div class="file-type-icon bg-purple-100 text-purple-500 mr-3">
+                                        <i class="fas fa-podcast"></i>
+                                    </div>
+                                    <div>
+                                        <div class="font-medium">Huberman Lab #45</div>
+                                        <div class="text-sm text-gray-500">Dr. Andrew Huberman</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">MP3</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">98.2 MB</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">6,521</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">5 days</td>
+                        </tr>
+                        <tr class="hover:bg-gray-50 cursor-pointer">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div class="file-type-icon bg-green-100 text-green-500 mr-3">
+                                        <i class="fas fa-file-alt"></i>
+                                    </div>
+                                    <div>
+                                        <div class="font-medium">Deep Learning Basics</div>
+                                        <div class="text-sm text-gray-500">Ian Goodfellow</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">PDF</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">4.7 MB</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">5,893</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">2 weeks</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-50 border-t border-gray-200 py-8">
+        <div class="container mx-auto px-4">
+            <div class="flex flex-col md:flex-row justify-between">
+                <div class="mb-6 md:mb-0">
+                    <div class="flex items-center space-x-2 mb-4">
+                        <i class="fas fa-anchor text-blue-500 text-xl"></i>
+                        <span class="font-bold">Knowledge Bay</span>
+                    </div>
+                    <p class="text-gray-500 text-sm max-w-md">
+                        The open library for sharing knowledge. Books, podcasts, research papers, and educational resources for everyone.
+                    </p>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-8">
+                    <div>
+                        <h4 class="text-sm font-semibold text-gray-700 mb-4">Resources</h4>
+                        <ul class="space-y-2">
+                            <li><a href="#" class="text-sm text-gray-500 hover:text-blue-500">Browse</a></li>
+                            <li><a href="#" class="text-sm text-gray-500 hover:text-blue-500">Top Content</a></li>
+                            <li><a href="#" class="text-sm text-gray-500 hover:text-blue-500">Recent Uploads</a></li>
+                            <li><a href="#" class="text-sm text-gray-500 hover:text-blue-500">Submit</a></li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-semibold text-gray-700 mb-4">Help</h4>
+                        <ul class="space-y-2">
+                            <li><a href="#" class="text-sm text-gray-500 hover:text-blue-500">FAQ</a></li>
+                            <li><a href="#" class="text-sm text-gray-500 hover:text-blue-500">Guides</a></li>
+                            <li><a href="#" class="text-sm text-gray-500 hover:text-blue-500">Contact</a></li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-semibold text-gray-700 mb-4">Legal</h4>
+                        <ul class="space-y-2">
+                            <li><a href="#" class="text-sm text-gray-500 hover:text-blue-500">DMCA</a></li>
+                            <li><a href="#" class="text-sm text-gray-500 hover:text-blue-500">Terms</a></li>
+                            <li><a href="#" class="text-sm text-gray-500 hover:text-blue-500">Privacy</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="border-t border-gray-200 mt-8 pt-8 flex flex-col md:flex-row justify-between items-center">
+                <p class="text-sm text-gray-500 mb-4 md:mb-0"> 2023 Knowledge Bay. All knowledge should be free.</p>
+                <div class="flex space-x-4">
+                    <a href="#" class="text-gray-400 hover:text-blue-500">
+                        <i class="fab fa-twitter"></i>
+                    </a>
+                    <a href="#" class="text-gray-400 hover:text-blue-500">
+                        <i class="fab fa-github"></i>
+                    </a>
+                    <a href="#" class="text-gray-400 hover:text-blue-500">
+                        <i class="fab fa-reddit"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </footer>
+<!-- Playlist Add Dialog (top-level, not nested) -->
+<div id="playlist-add-dialog" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 hidden">
+  <div class="bg-white rounded-lg shadow-lg max-w-xs w-full p-4 relative">
+    <button id="close-playlist-add-dialog" class="absolute top-2 right-2 text-gray-400 hover:text-blue-500 text-xl">&times;</button>
+    <h3 class="text-lg font-semibold mb-2">Add to Playlist</h3>
+    <form id="add-to-playlist-form" class="flex flex-col gap-2">
+      <select id="playlist-select" class="border px-2 py-1 rounded" required></select>
+      <button type="submit" class="bg-yellow-500 text-white px-4 py-1 rounded">Add</button>
+    </form>
+  </div>
+</div>
+<!-- Playlists Modal -->
+<div id="playlists-modal" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 hidden">
+  <div class="bg-white rounded-lg shadow-lg max-w-lg w-full p-6 relative">
+    <button id="close-playlists-modal" class="absolute top-2 right-2 text-gray-400 hover:text-blue-500 text-xl">&times;</button>
+    <h2 class="text-xl font-bold mb-4">Your Playlists</h2>
+    <a href="/playlists.html" class="inline-block mb-3 text-blue-600 hover:underline text-sm">Full Playlist Manager</a>
+    <div id="playlists-list" class="mb-4"></div>
+    <form id="create-playlist-form" class="flex gap-2 mb-4">
+      <input type="text" id="new-playlist-name" class="border px-2 py-1 rounded flex-1" placeholder="New playlist name..." required>
+      <button type="submit" class="bg-blue-500 text-white px-4 py-1 rounded">Create</button>
+    </form>
+    <div class="text-gray-500 text-sm">Add torrents to your playlists for later listening or watching. Playlists are stored on the server.</div>
+<!-- Playlist Add Dialog is now a top-level sibling, not nested in the modal -->
+  </div>
+</div>
+
+    <script>
+// --- TorrentMore.co Dynamic Search ---
+function formatSize(bytes) {
+  if (bytes === undefined || bytes === null || isNaN(bytes)) return '';
+  if (bytes < 1024) return bytes + ' B';
+  let k = 1024, dm = 2;
+  let sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  const searchInput = document.querySelector('.search-box input[type="text"]');
+  const searchButton = document.querySelector('.search-box button');
+
+  // Always trigger search on Enter or button click
+  searchInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      window.currentPage = 1;
+      mode = 'search';
+      loadTorrents();
+    }
+  });
+  searchButton.addEventListener('click', function() {
+    window.currentPage = 1;
+    mode = 'search';
+    loadTorrents();
+  });
+
+  const resultsGrid = document.getElementById('results-grid');
+  const loadingDiv = document.getElementById('results-loading');
+  const emptyDiv = document.getElementById('results-empty');
+  const metricsSummary = document.getElementById('metrics-summary');
+  const toggleRecent = document.getElementById('toggle-recent');
+  const toggleTop = document.getElementById('toggle-top');
+  let mode = 'recent'; // 'recent', 'top', or 'search'
+
+  async function fetchMetrics() {
+    try {
+      const res = await fetch('/api/metrics');
+      if (!res.ok) return;
+      const data = await res.json();
+      metricsSummary.textContent = `Index: ${data.total_torrents.toLocaleString()} torrents | Top: ${data.top_categories.map(c => `${c.name} (${c.count})`).join(', ')}`;
+    } catch {}
+  }
+
+  function setToggle(active) {
+    if (active === 'recent') {
+      toggleRecent.classList.add('bg-blue-500','text-white');
+      toggleRecent.classList.remove('bg-gray-200','text-gray-700');
+      toggleTop.classList.add('bg-gray-200','text-gray-700');
+      toggleTop.classList.remove('bg-blue-500','text-white');
+    } else {
+      toggleTop.classList.add('bg-blue-500','text-white');
+      toggleTop.classList.remove('bg-gray-200','text-gray-700');
+      toggleRecent.classList.add('bg-gray-200','text-gray-700');
+      toggleRecent.classList.remove('bg-blue-500','text-white');
+    }
+  }
+
+  async function loadTorrents() {
+    loadingDiv.classList.remove('hidden');
+    emptyDiv.classList.add('hidden');
+    resultsGrid.innerHTML = '';
+    let url = '';
+    const adultToggle = document.getElementById('adult-toggle');
+    const includeAdult = adultToggle && adultToggle.checked;
+    const adultParam = `adult=${includeAdult ? 'true' : 'false'}`;
+    const page = window.currentPage || 1;
+    const limit = 30; // You can make this user-configurable
+    let total = 0; // Will be set from API
+    let results = [];
+    if (mode === 'search') {
+      const q = searchInput.value.trim();
+      // Use group and subcategory for category filtering
+      const group = getSelectedGroup();
+      const subcat = getSelectedSubcategory();
+      let cat = '';
+      if (subcat) {
+        cat = subcat; // Use exact subcategory
+      } else if (group) {
+        cat = group; // Use group prefix
+      }
+      url = `/api/search?q=${encodeURIComponent(q)}`;
+      if (cat) url += `&category=${encodeURIComponent(cat)}`;
+      url += `&${adultParam}&page=${page}&limit=${limit}`;
+    } else if (mode === 'recent') {
+      url = `/api/recent?limit=${limit}&page=${page}&${adultParam}`;
+    } else {
+      url = `/api/top?limit=${limit}&page=${page}&${adultParam}`;
+    }
+     // Append sort param if present
+     const sortSelect = document.getElementById('sort-select');
+     const sort = sortSelect ? sortSelect.value : 'relevance';
+     if (url.includes('/api/search') && sort) url += `&sort=${encodeURIComponent(sort)}`;
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+      loadingDiv.classList.add('hidden');
+      results = data.results || data; // fallback for old endpoints
+      total = data.total || results.length;
+      if (typeof total !== 'number' || isNaN(total)) total = 0;
+      document.getElementById('results-count').textContent = `${total.toLocaleString()} result${total===1?'':'s'}`;
+      if (!results.length) {
+        emptyDiv.classList.remove('hidden');
+        return;
+      }
+      results.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'torrent-card bg-white rounded-lg p-4 flex flex-col gap-2 shadow hover:shadow-lg border border-gray-100';
+        card.innerHTML = `
+          <div class="flex items-center gap-3">
+            <div class="file-type-icon bg-blue-100 text-blue-500">
+              <i class="fas fa-file-alt"></i>
+            </div>
+            <div class="flex-1">
+              <h4 class="font-medium mb-1">${item.name}</h4>
+              <div class="text-xs text-gray-500 mb-1">${item.category || ''}</div>
+              <div class="flex gap-2 mt-2">
+                <span class="bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs">${formatSize(item.size)}</span>
+                <span class="bg-green-100 text-green-700 px-2 py-1 rounded text-xs"><i class="fas fa-arrow-up"></i> ${item.seeders}</span>
+                <span class="bg-red-100 text-red-700 px-2 py-1 rounded text-xs"><i class="fas fa-arrow-down"></i> ${item.leechers}</span>
+                <span class="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs"><i class="fas fa-users"></i> ${item.active_peers ?? (item.seeders + item.leechers)}</span>
+              </div>
+            </div>
+          </div>
+          <div class="flex gap-2 mt-3">
+            <a href="${item.magnet}" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs font-medium" target="_blank" rel="noopener">Magnet</a>
+            <button class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-xs font-medium stream-btn" data-magnet="${encodeURIComponent(item.magnet)}">Stream</button>
+            <button class="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded text-xs font-medium add-to-playlist-btn" data-magnet="${encodeURIComponent(item.magnet)}" data-name="${encodeURIComponent(item.name)}" data-category="${encodeURIComponent(item.category || '')}"><i class="fas fa-plus"></i> Add to Playlist</button>
+          </div>
+          <div class="stream-player mt-2 hidden"></div>
+        `;
+        resultsGrid.appendChild(card);
+      });
+      // Attach streaming logic
+      document.querySelectorAll('.stream-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+          e.preventDefault();
+          const magnet = decodeURIComponent(btn.getAttribute('data-magnet'));
+          const url = `/stream.html?magnet=${encodeURIComponent(magnet)}`;
+          window.open(url, '_blank', 'noopener');
+        });
+      });
+    } catch (e) {
+      console.error('Error loading torrents:', e);
+      loadingDiv.classList.add('hidden');
+      emptyDiv.classList.remove('hidden');
+      emptyDiv.textContent = 'Error loading torrents.';
+    }
+    const pagination = document.getElementById('pagination');
+    pagination.innerHTML = '';
+    const totalPages = Math.max(1, Math.ceil(total/limit));
+    if (totalPages > 1) {
+      const prevBtn = document.createElement('button');
+      prevBtn.textContent = 'Prev';
+      prevBtn.disabled = page <= 1;
+      prevBtn.className = 'px-3 py-1 rounded bg-gray-200 hover:bg-blue-100 disabled:opacity-50';
+      prevBtn.onclick = () => { window.currentPage = page - 1; loadTorrents(); };
+      pagination.appendChild(prevBtn);
+      for (let i = Math.max(1, page-2); i <= Math.min(totalPages, page+2); i++) {
+        const pageBtn = document.createElement('button');
+        pageBtn.textContent = i;
+        pageBtn.className = `px-2 py-1 rounded ${i===page?'bg-blue-500 text-white':'bg-gray-200 hover:bg-blue-100'}`;
+        pageBtn.onclick = () => { window.currentPage = i; loadTorrents(); };
+        pagination.appendChild(pageBtn);
+      }
+      const nextBtn = document.createElement('button');
+      nextBtn.textContent = 'Next';
+      nextBtn.disabled = page >= totalPages;
+      nextBtn.className = 'px-3 py-1 rounded bg-gray-200 hover:bg-blue-100 disabled:opacity-50';
+      nextBtn.onclick = () => { window.currentPage = page + 1; loadTorrents(); };
+      pagination.appendChild(nextBtn);
+    }
+  }
+
+   // Attach sort event listener
+   document.getElementById('sort-select').addEventListener('change', function() {
+     window.currentPage = 1;
+     loadTorrents();
+   });
+   // Attach dropdown event listeners after loadTorrents is defined
+   document.getElementById('category-group-select').addEventListener('change', function() {
+     populateSubcategories();
+     mode = 'search';
+     setToggle('');
+     loadTorrents();
+   });
+   document.getElementById('category-sub-select').addEventListener('change', function() {
+     mode = 'search';
+     setToggle('');
+     loadTorrents();
+   });
+
+  // Quick search button logic
+  document.querySelectorAll('.quick-search-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const query = btn.getAttribute('data-query');
+      const searchInput = document.querySelector('.search-box input[type="text"]');
+      searchInput.value = query;
+      window.currentPage = 1;
+      mode = 'search';
+      loadTorrents();
+      searchInput.focus();
+    });
+  });
+  // Grid/List toggle logic
+  let isGrid = true;
+  // Define renderResults as a wrapper for loadTorrents (for compatibility with grid/list toggles)
+  function renderResults(results) {
+    // Optionally, you could re-render from cached results, but for now reload
+    loadTorrents();
+  }
+  document.getElementById('toggle-grid').addEventListener('click', function() {
+    isGrid = true;
+    renderResults(window.lastResults || []);
+  });
+  document.getElementById('toggle-list').addEventListener('click', function() {
+    isGrid = false;
+    renderResults(window.lastResults || []);
+  });
+
+  toggleTop.addEventListener('click', function() {
+    mode = 'top';
+    setToggle('top');
+    loadTorrents();
+  });
+
+  // --- Playlists UI using backend API ---
+async function fetchPlaylists() {
+  const res = await fetch('/api/playlists');
+  if (!res.ok) return [];
+  return await res.json();
+}
+async function renderPlaylistsModal() {
+  const listDiv = document.getElementById('playlists-list');
+  if (!listDiv) return;
+  listDiv.innerHTML = '<div class="text-gray-400">Loading...</div>';
+  const playlists = await fetchPlaylists();
+  if (!playlists.length) {
+    listDiv.innerHTML = '<div class="text-gray-400">No playlists yet.</div>';
+    return;
+  }
+  listDiv.innerHTML = playlists.map(pl => `
+    <div class="mb-2 border rounded p-2">
+      <div class="flex justify-between items-center">
+        <span class="font-semibold">${pl.name}</span>
+        <span class="text-xs text-gray-500 ml-2">${pl.count} items</span>
+      </div>
+      <div class="text-xs text-gray-500 mb-1">Owner: ${pl.owner}</div>
+    </div>
+  `).join('');
+}
+document.getElementById('create-playlist-form').onsubmit = async function(e) {
+  e.preventDefault();
+  const name = document.getElementById('new-playlist-name').value.trim();
+  if (!name) return;
+  const res = await fetch('/api/playlists', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name })
+  });
+  if (!res.ok) {
+    alert('Error creating playlist');
+    return;
+  }
+  document.getElementById('new-playlist-name').value = '';
+  await renderPlaylistsModal();
+};
+// Add to playlist dialog logic
+let addToPlaylistTorrent = null;
+document.body.addEventListener('click', function(e) {
+  if (e.target.classList.contains('add-to-playlist-btn')) {
+    console.log('[AddToPlaylist] Button clicked');
+    const magnet = decodeURIComponent(e.target.getAttribute('data-magnet'));
+    const name = decodeURIComponent(e.target.getAttribute('data-name'));
+    const category = decodeURIComponent(e.target.getAttribute('data-category'));
+    addToPlaylistTorrent = { magnet, name, category };
+    console.log('[AddToPlaylist] Torrent:', addToPlaylistTorrent);
+    showAddToPlaylistDialog();
+  }
+});
+async function showAddToPlaylistDialog() {
+  console.log('[AddToPlaylistDialog] showAddToPlaylistDialog called');
+  const dialog = document.getElementById('playlist-add-dialog');
+  const select = document.getElementById('playlist-select');
+  select.innerHTML = '';
+  const playlists = await fetchPlaylists();
+  console.log('[AddToPlaylistDialog] Playlists:', playlists);
+  if (!playlists.length) {
+    select.innerHTML = '<option value="">No playlists</option>';
+    select.disabled = true;
+  } else {
+    playlists.forEach(pl => {
+      const opt = document.createElement('option');
+      opt.value = pl.id;
+      opt.textContent = pl.name;
+      select.appendChild(opt);
+    });
+    select.disabled = false;
+  }
+  dialog.classList.remove('hidden');
+  console.log('[AddToPlaylistDialog] Dialog should now be visible');
+}
+document.getElementById('close-playlist-add-dialog').onclick = function() {
+  document.getElementById('playlist-add-dialog').classList.add('hidden');
+};
+document.getElementById('add-to-playlist-form').onsubmit = async function(e) {
+  e.preventDefault();
+  const playlistId = document.getElementById('playlist-select').value;
+  if (!playlistId || !addToPlaylistTorrent) return;
+  const res = await fetch(`/api/playlists/${playlistId}/add`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(addToPlaylistTorrent)
+  });
+  const dialog = document.getElementById('playlist-add-dialog');
+  if (res.ok) {
+    dialog.classList.add('hidden');
+    alert('Added to playlist!');
+  } else {
+    const data = await res.json();
+    alert(data.error || 'Failed to add to playlist');
+  }
+  addToPlaylistTorrent = null;
+};
+document.getElementById('nav-playlists').addEventListener('click', function() {
+  document.getElementById('playlists-modal').classList.remove('hidden');
+  renderPlaylistsModal();
+});
+document.getElementById('close-playlists-modal').addEventListener('click', function() {
+  document.getElementById('playlists-modal').classList.add('hidden');
+});
+
+  fetchMetrics();
+  setToggle('recent');
+  loadTorrents();
+});
+
+        // Top nav links functionality (must be after loadTorrents is defined)
+        const navBrowse = document.getElementById('nav-browse');
+        const navRecent = document.getElementById('nav-recent');
+        const navTop = document.getElementById('nav-top');
+        const navPlaylists = document.getElementById('nav-playlists');
+        const navSubmit = document.getElementById('nav-submit');
+        if (navBrowse && navRecent && navTop && navPlaylists && navSubmit) {
+          navBrowse.addEventListener('click', function(e) {
+            e.preventDefault();
+            mode = 'recent';
+            setToggle('recent');
+            window.currentPage = 1;
+            loadTorrents();
+          });
+          navRecent.addEventListener('click', function(e) {
+            e.preventDefault();
+            mode = 'recent';
+            setToggle('recent');
+            window.currentPage = 1;
+            loadTorrents();
+          });
+          navTop.addEventListener('click', function(e) {
+            e.preventDefault();
+            mode = 'top';
+            setToggle('top');
+            window.currentPage = 1;
+            loadTorrents();
+          });
+          navPlaylists.addEventListener('click', function(e) {
+            e.preventDefault();
+            document.getElementById('playlists-modal').classList.remove('hidden');
+          });
+          document.getElementById('close-playlists-modal').addEventListener('click', function() {
+            document.getElementById('playlists-modal').classList.add('hidden');
+          });
+          navSubmit.addEventListener('click', function(e) {
+            e.preventDefault();
+            alert('Submit feature coming soon!');
+          });
+        }
+        const searchInput = document.querySelector('input[type="text"]');
+        const searchButton = document.querySelector('.search-box button');
+        searchButton.addEventListener('click', function() {
+          if (searchInput.value.trim() !== '') {
+            // In a real implementation, this would redirect to search results
+          }
+        });
+        searchInput.addEventListener('keypress', function(e) {
+          if (e.key === 'Enter' && searchInput.value.trim() !== '') {
+            // In a real implementation, this would redirect to search results
+          }
+        });
+        // Add click handlers for all torrent cards
+        const torrentCards = document.querySelectorAll('.torrent-card, table tr');
+        torrentCards.forEach(card => {
+          card.addEventListener('click', function() {
+            // In a real implementation, this would redirect to the torrent details page
+            const title = this.querySelector('.font-medium')?.textContent || 'Item';
+          });
+        });
+    </script>
+</body>
+</html>

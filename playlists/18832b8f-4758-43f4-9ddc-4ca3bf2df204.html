@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Playlist Details | TorrentMore.co</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <header class="bg-white border-b border-gray-200 sticky top-0 z-10">
+    <div class="container mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-2">
+        <i class="fas fa-anchor text-blue-500 text-2xl"></i>
+        <a href="/" class="text-xl font-bold hover:underline">TorrentMore.co</a>
+      </div>
+      <nav class="flex space-x-6">
+        <a href="/" class="text-gray-700 hover:text-blue-500 font-medium">Home</a>
+        <a href="/playlists.html" class="text-blue-600 font-medium underline">Playlists</a>
+        <a href="/metrics" class="text-gray-700 hover:text-blue-500 font-medium">Metrics</a>
+      </nav>
+    </div>
+  </header>
+  <main class="container mx-auto px-4 py-8">
+    <div id="playlist-details" class="max-w-2xl mx-auto"></div>
+  </main>
+  <script>
+    const playlistId = location.pathname.split('/').pop().replace('.html','');
+    async function fetchPlaylist() {
+      const res = await fetch(`/api/playlists`);
+      if (!res.ok) return null;
+      const all = await res.json();
+      const pl = all.find(x => x.id === playlistId);
+      if (!pl) return null;
+      // Fetch full playlist data (with items)
+      const res2 = await fetch(`/playlists/${playlistId}.json`);
+      if (!res2.ok) return null;
+      return await res2.json();
+    }
+    function itemRow(item) {
+      const isEpub = /\.epub$/i.test(item.name) || /(e[- ]?books?)/i.test(item.category||'');
+      return `
+        <div class="flex items-center justify-between bg-white rounded shadow p-3 mb-2">
+          <div class="flex flex-col">
+            <div class="font-medium text-gray-800">${item.name}</div>
+            <div class="text-xs text-gray-500">${item.category||''}</div>
+          </div>
+          <div class="flex gap-2">
+            <a href="/stream.html?magnet=${encodeURIComponent(item.magnet)}" class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-xs flex items-center gap-1" title="Stream"><i class="fas fa-play"></i> Stream</a>
+            <a href="${item.magnet}" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs flex items-center gap-1" title="Download"><i class="fas fa-download"></i> Download</a>
+          </div>
+        </div>
+      `;
+    }
+    async function renderPlaylist() {
+      const container = document.getElementById('playlist-details');
+      container.innerHTML = '<div class="text-gray-400">Loading...</div>';
+      const pl = await fetchPlaylist();
+      if (!pl) {
+        container.innerHTML = '<div class="text-red-500">Playlist not found.</div>';
+        return;
+      }
+      container.innerHTML = `
+        <h1 class="text-2xl font-bold mb-4">${pl.name}</h1>
+        <div class="mb-2 text-gray-500 text-sm">Owner: ${pl.owner||''}</div>
+        <div class="mb-6 text-gray-500 text-sm">${pl.items.length} item${pl.items.length===1?'':'s'}</div>
+        <div class="mb-4 text-xs text-yellow-700 bg-yellow-100 rounded p-2">To read e-books, download the EPUB and open it in the <a href='/ereader.html' class='underline text-yellow-900 hover:text-yellow-700'>EPUB Reader</a>. Your progress will be saved.</div>
+        <div>${pl.items.map(itemRow).join('')}</div>
+      `;
+    }
+    renderPlaylist();
+  </script>
+</body>
+</html>

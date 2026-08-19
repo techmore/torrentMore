@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audiobook Player (Howler) | TorrentMore.co</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.3/howler.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <header class="bg-white border-b border-gray-200 sticky top-0 z-10">
+    <div class="container mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-2">
+        <i class="fas fa-headphones text-blue-500 text-2xl"></i>
+        <a href="/" class="text-xl font-bold hover:underline">TorrentMore.co</a>
+      </div>
+      <nav class="flex space-x-6">
+        <a href="/" class="text-gray-700 hover:text-blue-500 font-medium">Home</a>
+        <a href="/playlists.html" class="text-gray-700 hover:text-blue-500 font-medium">Playlists</a>
+        <a href="/ereader.html" class="text-gray-700 hover:text-blue-500 font-medium">EPUB Reader</a>
+      </nav>
+    </div>
+  </header>
+  <main class="container mx-auto px-4 py-8">
+    <div class="max-w-xl mx-auto bg-white rounded shadow p-6 flex flex-col items-center">
+      <h1 class="text-2xl font-bold mb-4 flex items-center gap-2"><i class="fas fa-headphones"></i> Audiobook Player (Howler)</h1>
+      <form id="upload-form" class="w-full flex flex-col items-center mb-6 bg-gray-50 rounded p-4 border border-gray-200" enctype="multipart/form-data" novalidate autocomplete="off">
+        <div class="w-full flex flex-col md:flex-row gap-4 mb-2">
+          <input type="file" id="audio-files" name="files" accept=".mp3,.m4a,.mp4,.m4b,audio/mp4,audio/m4a,audio/mp3,image/*" webkitdirectory directory multiple required class="flex-1 border rounded p-2" />
+        </div>
+        <input type="text" id="book-title-input" name="title" placeholder="Book Title (optional)" class="w-full border rounded p-2 mb-2" />
+        <button type="submit" class="bg-blue-600 text-white py-2 px-6 rounded hover:bg-blue-700">Upload Audiobook</button>
+        <div id="upload-error" class="text-red-600 text-sm mt-2 hidden"></div>
+      </form>
+      <div class="w-full mt-8">
+        <h2 class="text-xl font-semibold mb-4 flex items-center gap-2"><i class="fas fa-book"></i> Your Audiobooks</h2>
+        <div id="audiobook-list" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
+      </div>
+      <div id="cover-art" class="mb-4">
+        <img id="album-art" src="https://placehold.co/200x200?text=No+Cover" alt="Cover Art" class="w-48 h-48 object-cover rounded shadow bg-gray-200">
+      </div>
+      <div id="chapter-list" class="mb-4"></div>
+      <div class="w-full flex flex-col items-center">
+        <div class="flex items-center gap-2 mb-4">
+          <button id="skip-back-30" class="bg-gray-200 rounded px-2 py-2 opacity-50 cursor-not-allowed" title="Back 30s" disabled><i class="fas fa-backward"></i> 30s</button>
+          <button id="skip-back-10" class="bg-gray-200 rounded px-2 py-2 opacity-50 cursor-not-allowed" title="Back 10s" disabled><i class="fas fa-backward"></i> 10s</button>
+          <button id="play-btn" class="bg-blue-500 text-white rounded px-4 py-2 opacity-50 cursor-not-allowed" disabled><i class="fas fa-play"></i></button>
+          <button id="pause-btn" class="bg-gray-200 rounded px-4 py-2 opacity-50 cursor-not-allowed" disabled><i class="fas fa-pause"></i></button>
+          <button id="stop-btn" class="bg-gray-200 rounded px-4 py-2 opacity-50 cursor-not-allowed" disabled><i class="fas fa-stop"></i></button>
+          <button id="skip-fwd-10" class="bg-gray-200 rounded px-2 py-2 opacity-50 cursor-not-allowed" title="Forward 10s" disabled>10s <i class="fas fa-forward"></i></button>
+          <button id="skip-fwd-30" class="bg-gray-200 rounded px-2 py-2 opacity-50 cursor-not-allowed" title="Forward 30s" disabled>30s <i class="fas fa-forward"></i></button>
+        </div>
+        <input type="range" id="seek-bar" class="w-full mb-2" min="0" max="100" value="0">
+        <div class="flex justify-between w-full text-xs text-gray-600">
+          <span id="current-time">00:00:00</span>
+          <span id="duration">00:00:00</span>
+        </div>
+      </div>
+      <div class="mt-6 w-full">
+        <button id="load-audiobook-btn" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">Load Audiobook (Demo)</button>
+      </div>
+      <div id="audio-error" class="text-red-600 text-sm mt-2 hidden"></div>
+    </div>
+  </main>
+
+  <script>
+    window.onload = function() {
+      let sound = null;
+      let duration = 0;
+      let seekBar = document.getElementById('seek-bar');
+      let playBtn = document.getElementById('play-btn');
+      let pauseBtn = document.getElementById('pause-btn');
+      let stopBtn = document.getElementById('stop-btn');
+      let skipBack10Btn = document.getElementById('skip-back-10');
+      let skipBack30Btn = document.getElementById('skip-back-30');
+      let skipFwd10Btn = document.getElementById('skip-fwd-10');
+      let skipFwd30Btn = document.getElementById('skip-fwd-30');
+      let currentTimeEl = document.getElementById('current-time');
+      let durationEl = document.getElementById('duration');
+      let albumArt = document.getElementById('album-art');
+      let audioError = document.getElementById('audio-error');
+      let progressTimer = null;
+      let uploadForm = document.getElementById('upload-form');
+      let uploadError = document.getElementById('upload-error');
+
+      function formatTime(sec) {
+        sec = Math.floor(sec);
+        const h = Math.floor(sec / 3600).toString().padStart(2, '0');
+        const m = Math.floor((sec % 3600) / 60).toString().padStart(2, '0');
+        const s = (sec % 60).toString().padStart(2, '0');
+        return `${h}:${m}:${s}`;
+      }
+
+      function updateProgress() {
+        if (sound && sound.playing()) {
+          const seek = sound.seek();
+          seekBar.value = duration ? (seek / duration) * 100 : 0;
+          currentTimeEl.textContent = formatTime(seek);
+        }
+      }
+
+      function clearProgressTimer() {
+        if (progressTimer) {
+          clearInterval(progressTimer);
+          progressTimer = null;
+        }
+      }
+
+      // --- Audiobook List Rendering ---
+      async function renderAudiobookList(cb) {
+        const listDiv = document.getElementById('audiobook-list');
+        listDiv.innerHTML = '<div class="text-gray-400">Loading...</div>';
+        let audiobooks = [];
+        try {
+          console.log('[List] Fetching /api/audiobooks...');
+          const res = await fetch('/api/audiobooks');
+          if (!res.ok) {
+            const text = await res.text();
+            console.error('[List] Fetch failed:', text);
+            listDiv.innerHTML = '<div class="text-red-500">Failed to load audiobooks: ' + text + '</div>';
+            return;
+          }
+          audiobooks = await res.json();
+          console.log('[List] Audiobooks:', audiobooks);
+        } catch (err) {
+          listDiv.innerHTML = '<div class="text-red-500">Failed to load audiobooks.</div>';
+          console.error('[List] Error:', err);
+          return;
+        }
+        if (!audiobooks.length) {
+          listDiv.innerHTML = '<div class="text-gray-400">No audiobooks uploaded yet.</div>';
+          return;
+        }
+        listDiv.innerHTML = '';
+        audiobooks.forEach(ab => {
+          const card = document.createElement('div');
+          card.className = 'bg-gray-100 rounded p-3 flex flex-col items-center shadow cursor-pointer hover:bg-blue-50';
+          card.innerHTML = `
+            <img src="${ab.cover || 'https://placehold.co/120x120?text=No+Cover'}" alt="Cover" class="w-24 h-24 object-cover rounded mb-2 bg-gray-200">
+            <div class="font-semibold text-center mb-1">${ab.title}</div>
+          `;
+          card.onclick = () => loadAudiobookById(ab);
+          listDiv.appendChild(card);
+        });
+        if (cb) cb();
+      }
+
+      // --- Load Audiobook by ID ---
+      async function loadAudiobookById(ab) {
+        try {
+          const res = await fetch(`/api/audiobooks/${ab.id}`);
+          const data = await res.json();
+          // Set cover
+          albumArt.src = data.cover || 'https://placehold.co/200x200?text=No+Cover';
+          // Render chapters
+          const chapterDiv = document.getElementById('chapter-list');
+          chapterDiv.innerHTML = '';
+          if (data.tracks && data.tracks.length) {
+            chapterDiv.innerHTML = '<div class="font-semibold mb-2">Chapters</div>';
+            data.tracks.forEach((track, idx) => {
+              const btn = document.createElement('button');
+              btn.className = 'block w-full text-left px-3 py-1 rounded mb-1 bg-white hover:bg-blue-100';
+              btn.textContent = `${idx+1}. ${track.filename}`;
+              btn.onclick = () => loadAudiobook(`/uploads/${ab.id}/${track.filename}`, data.cover || null);
+              chapterDiv.appendChild(btn);
+            });
+          } else {
+            chapterDiv.innerHTML = '<div class="text-gray-400">No chapters found.</div>';
+          }
+        } catch (err) {
+          document.getElementById('chapter-list').innerHTML = '<div class="text-red-500">Failed to load chapters.</div>';
+        }
+      }
+
+      // Show audiobooks on load
+      renderAudiobookList();
+
+      // --- Load and play audio file ---
+      function setPlayerEnabled(enabled) {
+        [playBtn, pauseBtn, stopBtn, seekBar, skipBack10Btn, skipBack30Btn, skipFwd10Btn, skipFwd30Btn].forEach(btn => {
+          if (!btn) return;
+          btn.disabled = !enabled;
+          if (!enabled) {
+            btn.classList.add('opacity-50','cursor-not-allowed');
+          } else {
+            btn.classList.remove('opacity-50','cursor-not-allowed');
+          }
+        });
+      }
+
+      setPlayerEnabled(false);
+
+      function loadAudiobook(url, coverUrl) {
+        if (sound) {
+          sound.unload();
+          sound = null;
+        }
+        setPlayerEnabled(false);
+        sound = new Howl({
+          src: url,
+          html5: true,
+          format: ['mp3']
+        });
+        albumArt.src = coverUrl || 'https://placehold.co/200x200?text=No+Cover';
+        setPlayerEnabled(true);
+        sound.play();
+      }
+
+      // --- Player Controls ---
+      function playAudio() {
+        if (!sound) return;
+        sound.play();
+        clearProgressTimer();
+        progressTimer = setInterval(updateProgress, 500);
+      }
+      function pauseAudio() {
+        if (!sound) return;
+        sound.pause();
+        clearProgressTimer();
+      }
+      function stopAudio() {
+        if (!sound) return;
+        sound.stop();
+        clearProgressTimer();
+        seekBar.value = 0;
+        currentTimeEl.textContent = '00:00:00';
+      }
+      function skipAudio(seconds) {
+        if (!sound) return;
+        let seek = sound.seek() + seconds;
+        if (seek < 0) seek = 0;
+        if (seek > duration) seek = duration;
+        sound.seek(seek);
+        updateProgress();
+      }
+      playBtn.onclick = playAudio;
+      pauseBtn.onclick = pauseAudio;
+      stopBtn.onclick = stopAudio;
+      document.getElementById('skip-back-10').onclick = function() { skipAudio(-10); };
+      document.getElementById('skip-back-30').onclick = function() { skipAudio(-30); };
+      document.getElementById('skip-fwd-10').onclick = function() { skipAudio(10); };
+      document.getElementById('skip-fwd-30').onclick = function() { skipAudio(30); };
+      seekBar.oninput = function() {
+        if (sound && duration) {
+          let seek = (seekBar.value / 100) * duration;
+          sound.seek(seek);
+          updateProgress();
+        }
+      };
+
+      // --- Upload form handler ---
+      uploadForm.onsubmit = async function(event) {
+        event.preventDefault();
+        uploadError.classList.add('hidden');
+        const files = document.getElementById('audio-files').files;
+        const title = document.getElementById('book-title-input').value;
+        if (!files.length) {
+          uploadError.textContent = 'Please select at least one audio file.';
+          uploadError.classList.remove('hidden');
+          console.warn('[Upload] No files selected');
+          return;
+        }
+        }
+        // Use folder name if possible, else first audio file name as title
+        let title = titleInput.value.trim();
+        if (!title) {
+          let folderName = '';
+          if (audioFiles[0].webkitRelativePath) {
+            folderName = audioFiles[0].webkitRelativePath.split('/')[0];
+          }
+          title = folderName || audioFiles[0].name.replace(/\.[^/.]+$/, '');
+        }
+        console.log('[Upload] Title:', title);
+        // Natural sort audio files by path/name
+        audioFiles.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+        const formData = new FormData();
+        const tracks = [];
+        audioFiles.forEach((file, idx) => {
+          formData.append('files', file);
+          tracks.push({ track_index: idx, filename: file.name, duration: '' });
+          formData.append(String(idx), file);
+        });
+        if (coverFile) {
+          formData.append('cover', coverFile);
+        }
+        formData.append('metadata', JSON.stringify({ title: title, tracks: tracks }));
+        fetch('/api/audiobooks/upload', {
+          method: 'POST',
+          body: formData
+        }).then(r => {
+          if (!r.ok) return r.json().then(j => Promise.reject(j.error || 'Upload failed'));
+          return r.json();
+        }).then((uploadResult) => {
+          console.log('[Upload] API upload result:', uploadResult);
+          renderAudiobookList(() => {
+            if (uploadResult && uploadResult.id) {
+              fetch(`/api/audiobooks/${uploadResult.id}`).then(r=>r.json()).then(ab => {
+                if (typeof loadAudiobookById === 'function') {
+                  loadAudiobookById(ab);
+                } else {
+                  uploadError.textContent = 'Playback error: loadAudiobookById is not defined.';
+                  uploadError.classList.remove('hidden');
+                  console.error('[Upload] loadAudiobookById is not defined.');
+                }
+              }).catch(err => {
+                uploadError.textContent = 'Playback error: failed to fetch new audiobook.';
+                uploadError.classList.remove('hidden');
+                console.error('[Upload] Failed to fetch new audiobook:', err);
+              });
+            }
+          });
+          uploadForm.reset();
+        }).catch(err => {
+          uploadError.textContent = err;
+      window.onload = function() {
+        albumArt.src = 'https://placehold.co/200x200?text=No+Cover';
+        audioError.classList.add('hidden');
+        seekBar.disabled = true;
+        currentTimeEl.textContent = '00:00:00';
+        durationEl.textContent = '00:00:00';
+
+        let sound;
+        let duration;
+        let progressTimer;
+
+        function setPlayerEnabled(enabled) {
+          [playBtn, pauseBtn, stopBtn, seekBar, skipBack10Btn, skipBack30Btn, skipFwd10Btn, skipFwd30Btn].forEach(btn => {
+            if (!btn) return;
+            btn.disabled = !enabled;
+            if (!enabled) {
+              btn.classList.add('opacity-50','cursor-not-allowed');
+            } else {
+              btn.classList.remove('opacity-50','cursor-not-allowed');
+            }
+          });
+        }
+
+        setPlayerEnabled(false);
+
+        function loadAudiobook(url, coverUrl) {
+          if (sound) {
+            sound.unload();
+            sound = null;
+            clearProgressTimer();
+          }
+          sound = new Howl({
+            src: url,
+            html5: true,
+            format: ['mp3']
+          });
+          albumArt.src = coverUrl || 'https://placehold.co/200x200?text=No+Cover';
+          audioError.classList.add('hidden');
+          seekBar.disabled = true;
+          currentTimeEl.textContent = '00:00:00';
+          durationEl.textContent = '00:00:00';
+        }
+      }
+    }
+  </script>
+ </body>
+</html>

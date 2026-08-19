@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audiobook Player Full | TorrentMore.co</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    window.playerState = () => ({
+      coverUrl: 'https://placehold.co/200x200?text=No+Cover',
+      bookTitle: 'Audiobook Playlist',
+      trackTitle: '',
+    });
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/amplitudejs@5.3.2/dist/amplitude.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/amplitudejs@5.3.2/dist/amplitude.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/music-metadata-browser@2.8.5/dist/music-metadata-browser.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <header class="bg-white border-b border-gray-200 sticky top-0 z-10">
+    <div class="container mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-2">
+        <i class="fas fa-headphones text-blue-500 text-2xl"></i>
+        <a href="/" class="text-xl font-bold hover:underline">TorrentMore.co</a>
+      </div>
+      <nav class="flex space-x-6">
+        <a href="/" class="text-gray-700 hover:text-blue-500 font-medium">Home</a>
+        <a href="/playlists.html" class="text-gray-700 hover:text-blue-500 font-medium">Playlists</a>
+        <a href="/ereader.html" class="text-gray-700 hover:text-blue-500 font-medium">EPUB Reader</a>
+      </nav>
+    </div>
+  </header>
+  <main class="container mx-auto px-4 py-8">
+    <div class="max-w-6xl mx-auto bg-white rounded shadow p-6 flex flex-col md:flex-row gap-8 items-start">
+      <div class="flex-1 min-w-[320px]" id="blue-playlist-container">
+        <div id="library-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mb-6"></div>
+        <div id="upload-container">
+          <input type="file" id="audio-input" accept=".mp3,.m4a,.mp4,.m4b,audio/mp4,audio/m4a,audio/mp3,image/jpeg,image/jpg" webkitdirectory multiple class="mb-4" />
+          <div id="audio-error" class="text-red-600 text-sm mb-2 hidden"></div>
+          <div class="text-xs text-gray-500 mb-4">Upload a folder of MP3/M4B files. If your .m4b file doesn't play, try renaming it to .m4a or .mp4. Add a cover.jpg for custom cover art.</div>
+        </div>
+        <div id="amplitude-player" class="flex flex-col md:flex-row w-full" x-data="playerState">
+          <!-- Left Side Player -->
+          <div id="amplitude-left" class="flex flex-col items-center w-full md:w-2/5">
+            <img id="album-art" :src="coverUrl" alt="Cover Art" class="w-48 h-48 object-cover rounded shadow mb-4 bg-gray-200">
+            <div class="amplitude-visualization amplitude-wave-form w-full h-24 mb-2"></div>
+            <div class="w-full px-2">
+              <div class="flex items-start justify-between mb-2">
+                <span id="current-time-display" class="text-sm">00:00:00</span>
+                <span id="duration-display" class="text-sm">00:00:00</span>
+              </div>
+              <input type="range" class="amplitude-song-slider w-full mb-2">
+              <progress id="song-played-progress" class="amplitude-song-played-progress w-full h-1" value="0" max="100" style="--progress:0;"></progress>
+              <style>
+                .amplitude-song-played-progress {
+                  appearance: none;
+                  -webkit-appearance: none;
+                  background: transparent;
+                  position: relative;
+                  height: 0.5rem;
+                  border-radius: 0.25rem;
+                  overflow: hidden;
+                }
+                .amplitude-song-played-progress::-webkit-progress-bar {
+                  background: #e5e7eb;
+                  border-radius: 0.25rem;
+                }
+                .amplitude-song-played-progress::-webkit-progress-value {
+                  background: linear-gradient(90deg, #3b82f6 0%, #ec4899 100%);
+                  border-radius: 0.25rem;
+                  transition: background 0.2s;
+                }
+                .amplitude-song-played-progress::-moz-progress-bar {
+                  background: linear-gradient(90deg, #3b82f6 0%, #ec4899 100%);
+                  border-radius: 0.25rem;
+                  transition: background 0.2s;
+                }
+                .amplitude-song-played-progress::-ms-fill {
+                  background: linear-gradient(90deg, #3b82f6 0%, #ec4899 100%);
+                  border-radius: 0.25rem;
+                  transition: background 0.2s;
+                }
+              </style>
+            </div>
+            <div class="flex items-center justify-center gap-2 my-2">
+              <button id="skip-back-30" class="bg-gray-200 hover:bg-gray-300 rounded p-2" aria-label="Back 30 seconds"><i class="fas fa-undo-alt"></i> 30s</button>
+              <button id="skip-back-10" class="bg-gray-200 hover:bg-gray-300 rounded p-2" aria-label="Back 10 seconds"><i class="fas fa-undo"></i> 10s</button>
+              <button class="amplitude-prev bg-gray-200 hover:bg-gray-300 rounded p-2" aria-label="Previous"><i class="fas fa-backward"></i></button>
+              <button class="amplitude-play-pause bg-blue-500 text-white hover:bg-blue-600 rounded p-2" aria-label="Play/Pause"><i class="fas fa-play amplitude-paused"></i><i class="fas fa-pause amplitude-playing hidden"></i></button>
+              <button class="amplitude-next bg-gray-200 hover:bg-gray-300 rounded p-2" aria-label="Next"><i class="fas fa-forward"></i></button>
+              <button id="skip-forward-10" class="bg-gray-200 hover:bg-gray-300 rounded p-2" aria-label="Forward 10 seconds">10s <i class="fas fa-redo"></i></button>
+              <button id="skip-forward-30" class="bg-gray-200 hover:bg-gray-300 rounded p-2" aria-label="Forward 30 seconds">30s <i class="fas fa-redo-alt"></i></button>
+            </div>
+            <div class="mt-4 text-center">
+              <span data-amplitude-song-info="name" class="font-bold text-lg" x-text="trackTitle"></span>
+              <div class="text-sm text-gray-600"><span data-amplitude-song-info="artist"></span> <span data-amplitude-song-info="album"></span></div>
+            </div>
+          </div>
+          <!-- End Left Side Player -->
+
+          <!-- Right Side Playlist -->
+          <div id="amplitude-right" class="flex-1 md:w-3/5 md:pl-8 w-full mt-8 md:mt-0">
+            <h2 id="book-title" class="text-xl font-semibold mb-4"><i class="fas fa-headphones"></i> <span x-text="bookTitle">Audiobook Playlist</span></h2>
+            <div id="playlist-list" class="divide-y divide-gray-200"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <!-- Delete Confirmation Modal -->
+  <div id="confirm-modal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 hidden">
+    <div class="bg-white rounded-lg shadow-lg p-6 w-80">
+      <h3 class="text-lg font-semibold mb-4">Confirm Delete</h3>
+      <p class="text-sm text-gray-700 mb-6">Are you sure you want to delete this audiobook and all data?</p>
+      <div class="flex justify-end space-x-4">
+        <button id="modal-cancel" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Cancel</button>
+        <button id="modal-confirm" class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">Delete</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Suppress play() abort errors and ignore them
+    window.addEventListener('unhandledrejection', event => {
+      if (event.reason && event.reason.name === 'AbortError') {
+        console.warn('Ignored AbortError:', event.reason);
+        event.preventDefault();
+      }
+    });
+    document.addEventListener('DOMContentLoaded', function() {
+      window.playerState = Alpine.reactive({
+        coverUrl: 'https://placehold.co/200x200?text=No+Cover',
+        bookTitle: 'Audiobook Playlist',
+        trackTitle: '',
+      });
+      let progressInterval = null;
+      let timeUpdateInterval = null;
+      let isLoadingAudiobook = false;
+      let currentAudiobookId = null; // Track loaded audiobook
+      let lastLoadRequest = 0; // For debounce
+
+      // Cache DOM elements
+      const audioInput = document.getElementById('audio-input');
+      const audioError = document.getElementById('audio-error');
+      const albumArt = document.getElementById('album-art');
+      const bookTitleHeader = document.getElementById('book-title');
+
+      function naturalSortFiles(files) {
+        return [...files].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+      }
+
+      function formatTime(seconds) {
+        const total = Math.floor(seconds);
+        const hours = Math.floor(total / 3600);
+        const minutes = Math.floor((total % 3600) / 60);
+        const secondsRemaining = total % 60;
+        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secondsRemaining.toString().padStart(2, '0')}`;
+      }
+
+      function onTimeUpdate(){ 
+        const currentSec = Amplitude.getSongPlayedSeconds();
+        const durationSec = Amplitude.getSongDuration();
+        // update time displays
+        const currentTimeEl = document.getElementById('current-time-display');
+        const durationEl = document.getElementById('duration-display');
+        if (currentTimeEl) currentTimeEl.textContent = formatTime(currentSec);
+        if (durationEl) durationEl.textContent = formatTime(durationSec);
+        // update progress bar
+        const percent = durationSec ? (currentSec / durationSec) * 100 : 0;
+        const playedProgress = document.getElementById('song-played-progress');
+        if (playedProgress) {
+          playedProgress.value = percent;
+          playedProgress.style.background = `linear-gradient(90deg, #3b82f6 0%, #ec4899 ${percent}%)`;
+        }
+      }
+
+
+      function wireSkipButtons() {}
+
+      async function loadAudiobook(id) {
+        const now = Date.now();
+        if (isLoadingAudiobook) {
+          console.log('[Player] Already loading, skipping:', id);
+          return;
+        }
+        if (id === currentAudiobookId) {
+          console.log('[Player] Audiobook already loaded, skipping:', id);
+          return;
+        }
+        // Debounce: ignore rapid repeated calls within 500ms
+        if (now - lastLoadRequest < 500) {
+          console.log('[Player] Debounced rapid load:', id);
+          return;
+        }
+        lastLoadRequest = now;
+        isLoadingAudiobook = true;
+        currentAudiobookId = id;
+        try {
+          console.log('[Audiobook] Loading audiobook id:', id);
+          // clear any existing timers
+          if (progressInterval) { clearInterval(progressInterval); progressInterval = null; }
+          if (timeUpdateInterval) { clearInterval(timeUpdateInterval); timeUpdateInterval = null; }
+          audioError.classList.add('hidden');
+          audioError.textContent = '';
+
+          const res = await fetch(`/api/audiobooks/${id}`);
+          const ab = await res.json();
+          console.log('[Audiobook] Fetched audiobook data:', ab);
+          if (!ab.tracks || !ab.tracks.length) {
+            audioError.textContent = 'No tracks found for this audiobook.';
+            audioError.classList.remove('hidden');
+            albumArt.src = 'https://placehold.co/200x200?text=No+Cover';
+            return;
+          }
+          const tracks = ab.tracks.map(t=>({ name:t.filename, url:`/uploads/${id}/${t.filename}`, duration:t.duration }));
+          bookTitleHeader.innerHTML = `<i class="fas fa-headphones"></i> ${ab.title}`;
+          // Always set cover art to match the library card, with fallback
+          let coverUrl = ab.cover || 'https://placehold.co/200x200?text=No+Cover';
+          // Update Alpine.js state for reactive UI
+          playerState.coverUrl = coverUrl;
+          playerState.bookTitle = ab.title;
+          playerState.trackTitle = tracks[0]?.name || '';
+          albumArt.src = coverUrl;
+          albumArt.onerror = function() {
+            albumArt.src = 'https://placehold.co/200x200?text=No+Cover';
+          };
+          console.log('[Player] Setting albumArt.src =', coverUrl);
+          // init amplitude
+          try {
+            if (window.Amplitude && Amplitude.getActiveSongMetadata) {
+              try { Amplitude.stop(); } catch {}
+              try { Amplitude.destroy(); } catch {}
+              console.log('[Player] Amplitude destroyed');
+              // Remove all <audio> elements in the DOM
+              document.querySelectorAll('#amplitude-player audio').forEach(a => a.remove());
+              await new Promise(r => setTimeout(r, 100)); // Ensure cleanup
+            }
+            // Remove any lingering <audio> tags left by Amplitude
+            const audios = document.querySelectorAll('#amplitude-player audio');
+            audios.forEach(a => a.remove());
+            // DO NOT clear amplitude-player DOM; Alpine handles UI
+            console.log('[Player] Initializing Amplitude with tracks:', tracks);
+            Amplitude.init({
+              songs: tracks,
+              waveforms: { sample_rate: 50 },
+              continue_next: false,
+              preload: false // Disable preloading to prevent extra requests
+            });
+            // Set active chapter/track and position
+            if (ab.progress) {
+              const idx = ab.progress.track_index;
+              const pos = ab.progress.position;
+              if (typeof Amplitude.setActiveSongIndex === 'function') {
+                Amplitude.setActiveSongIndex(idx);
+              } else if (typeof Amplitude.playSongAtIndex === 'function') {
+                Amplitude.playSongAtIndex(idx);
+                Amplitude.pause();
+              }
+              setTimeout(()=>{
+                const dur = Amplitude.getSongDuration();
+                const pct = dur ? (pos/dur)*100 : 0;
+                Amplitude.setSongPlayedPercentage(pct);
+                // Update time display and progress bar
+                onTimeUpdate();
+              }, 300);
+            } else {
+              onTimeUpdate();
+            }
+            timeUpdateInterval = setInterval(onTimeUpdate, 1000);
+            progressInterval = setInterval(() => {
+              const idx = Amplitude.getActiveIndex();
+              const pos = Amplitude.getSongPlayedSeconds();
+              fetch(`/api/audiobooks/${id}/progress`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ track_index: idx, position: pos })
+              });
+            }, 5000);
+            // wire skip buttons
+            wireSkipButtons();
+          } catch (ampErr) {
+            console.error('[Player] Amplitude error:', ampErr);
+            audioError.textContent = 'Audio player failed to load. See console for details.';
+            audioError.classList.remove('hidden');
+            albumArt.src = 'https://placehold.co/200x200?text=No+Cover';
+            return;
+          }
+        } catch (err) {
+          console.error('[Player] JS error:', err);
+          audioError.textContent = 'An error occurred loading this audiobook.';
+          audioError.classList.remove('hidden');
+          albumArt.src = 'https://placehold.co/200x200?text=No+Cover';
+        } finally {
+          isLoadingAudiobook = false;
+        }
+      }
+
+      let deleteIdToConfirm = null;
+      function showDeleteModal(abId, abTitle) {
+        deleteIdToConfirm = abId;
+        const modal = document.getElementById('confirm-modal');
+        modal.querySelector('h3').textContent = `Delete "${abTitle}"?`;
+        modal.classList.remove('hidden');
+      }
+      document.getElementById('modal-cancel').onclick = () => {
+        document.getElementById('confirm-modal').classList.add('hidden');
+        deleteIdToConfirm = null;
+      };
+      document.getElementById('modal-confirm').onclick = async () => {
+        if (!deleteIdToConfirm) return;
+        await fetch(`/api/audiobooks/${deleteIdToConfirm}`, { method: 'DELETE' });
+        document.getElementById('confirm-modal').classList.add('hidden');
+        deleteIdToConfirm = null;
+        await renderLibraryGrid();
+      };
+
+      // Render audiobook grid
+      async function renderLibraryGrid() {
+      const grid = document.getElementById('library-grid');
+      grid.innerHTML = '<div class="text-gray-400">Loading...</div>';
+      let audiobooks = [];
+      try {
+        const res = await fetch('/api/audiobooks');
+        audiobooks = await res.json();
+      } catch {
+        grid.innerHTML = '<div class="text-red-500">Failed to load audiobooks.</div>';
+        return;
+      }
+      if (!audiobooks.length) {
+        grid.innerHTML = '<div class="text-gray-400">No audiobooks uploaded yet.</div>';
+        return;
+      }
+      // Fetch progress for each book
+      const progressPromises = audiobooks.map(ab =>
+        fetch(`/api/audiobooks/${ab.id}/progress`).then(r => r.json()).catch(() => ({track_index:0,position:0}))
+      );
+      const progressArr = await Promise.all(progressPromises);
+      // Fetch track durations for each book
+      const tracksPromises = audiobooks.map(ab =>
+        fetch(`/api/audiobooks/${ab.id}`).then(r => r.json()).then(data => data.tracks).catch(() => [])
+      );
+      const tracksArr = await Promise.all(tracksPromises);
+      grid.innerHTML = '';
+      audiobooks.forEach((ab, i) => {
+        const cover = ab.cover || 'https://placehold.co/200x200?text=No+Cover';
+        const title = ab.title || 'Untitled';
+        const progress = progressArr[i];
+        const tracks = tracksArr[i];
+        // Calculate total and read seconds
+        let totalSec = 0, readSec = 0;
+        tracks.forEach((t, idx) => {
+          const dur = t.duration||'';
+          const [min, sec] = dur.split(':').map(Number);
+          const tSec = (isNaN(min)?0:min)*60 + (isNaN(sec)?0:sec);
+          totalSec += tSec;
+          if (idx < progress.track_index) readSec += tSec;
+        });
+        // Add current position in current track
+        readSec += progress.position||0;
+        const leftSec = Math.max(0, totalSec - readSec);
+        function fmtTime(sec) {
+          sec = Math.floor(sec);
+          const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
+          return `${h>0?h+':':''}${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+        }
+        const progressText = totalSec ? `${fmtTime(readSec)} read / ${fmtTime(leftSec)} left` : '';
+        const card = document.createElement('div');
+        card.className = 'rounded shadow bg-white p-4 flex flex-col items-center relative hover:shadow-lg transition';
+        card.innerHTML = `
+          <button aria-label="Delete audiobook" class="absolute top-2 right-2 text-red-500 hover:text-red-700 focus:outline-none delete-btn" title="Delete">
+            <i class="fas fa-trash"></i>
+          </button>
+          <img src="${cover}" alt="Cover" class="w-32 h-32 object-cover rounded mb-3 bg-gray-200">
+          <div class="font-semibold text-center mb-1">${title}</div>
+          <div class="text-xs text-gray-500 mb-2">${progressText}</div>
+        `;
+        card.querySelector('.delete-btn').onclick = (e) => {
+          e.stopPropagation();
+          showDeleteModal(ab.id, title);
+        };
+        card.onclick = () => loadAudiobook(ab.id);
+        grid.appendChild(card);
+      });
+    }
+
+      // initial load
+      renderLibraryGrid();
+
+      audioInput.addEventListener('change', async function(e) {
+      const files = Array.from(e.target.files || []);
+      console.log('[Audiobook] File input changed, files:', files);
+      audioError.classList.add('hidden');
+      audioError.textContent = '';
+      // Show uploading indicator
+      audioError.textContent = 'Uploading audiobook...';
+      audioError.classList.remove('hidden');
+      albumArt.src = '';
+      bookTitleHeader.innerHTML = '<i class="fas fa-headphones"></i> Audiobook Playlist';
+      if (!files.length) return;
+      // Find the largest jpg/jpeg in the selection for cover art
+      let jpgs = files.filter(f => /\.(jpg|jpeg)$/i.test(f.name));
+      let coverImgUrl = null;
+      let coverFile = null;
+      let coverBlob = null;
+      if (jpgs.length > 0) {
+        const largest = jpgs.reduce((a, b) => a.size > b.size ? a : b);
+        coverImgUrl = URL.createObjectURL(largest);
+        coverFile = largest;
+        console.log('[Audiobook][Upload] Found cover file:', largest.name, 'size:', largest.size);
+      } else {
+        console.log('[Audiobook][Upload] No cover.jpg/jpeg file found in selection.');
+      }
+      // Filter and sort audio files
+      const audioFiles = naturalSortFiles(files).filter(f => /\.(mp3|m4a|mp4|m4b)$/i.test(f.name));
+      if (!audioFiles.length) {
+        audioError.textContent = 'Please select valid audio files (mp3, m4a, m4b, mp4).';
+        audioError.classList.remove('hidden');
+        return;
+      }
+      // Extract metadata for each file
+      const tracks = [];
+      let bookTitle = '';
+      for (let i = 0; i < audioFiles.length; i++) {
+        const file = audioFiles[i];
+        let title = file.name;
+        let chapter = '';
+        let artist = '';
+        let album = '';
+        let duration = '';
+        try {
+          const metadata = await musicMetadata.parseBlob(file);
+          if (i === 0 && metadata.common.album) bookTitle = metadata.common.album;
+          if (metadata.common.title) title = metadata.common.title;
+          if (metadata.common.track && metadata.common.track.no) chapter = metadata.common.track.no;
+          if (metadata.common.artist) artist = metadata.common.artist;
+          if (metadata.common.album) album = metadata.common.album;
+          if (metadata.format && metadata.format.duration) {
+            const mins = Math.floor(metadata.format.duration / 60).toString().padStart(2, '0');
+            const secs = Math.floor(metadata.format.duration % 60).toString().padStart(2, '0');
+            duration = `${mins}:${secs}`;
+          }
+          if (!coverImgUrl && metadata.common.picture && metadata.common.picture.length > 0) {
+            const pic = metadata.common.picture[0];
+            const blob = new Blob([pic.data], { type: pic.format });
+            coverImgUrl = URL.createObjectURL(blob);
+            coverBlob = blob;
+            console.log('[Audiobook][Upload] Extracted embedded cover art:', pic.format, 'size:', blob.size);
+          }
+        } catch (err) {}
+        tracks.push({
+          name: title,
+          chapter: chapter,
+          artist: artist || 'Unknown',
+          album: album || '',
+          url: URL.createObjectURL(file),
+          duration: duration,
+          cover_art_url: coverImgUrl || ''
+        });
+      }
+      // Upload audiobook to server
+      const metadata = {
+        title: bookTitle || (audioFiles[0].webkitRelativePath||audioFiles[0].name).split('/')[0],
+        cover: '',
+        tracks: tracks.map((t, idx) => ({ track_index: idx, filename: audioFiles[idx].name, duration: t.duration }))
+      };
+      const formData = new FormData();
+      formData.append('metadata', JSON.stringify(metadata));
+      // append cover (preferring file over embedded blob)
+      if (coverFile) {
+        formData.append('cover', coverFile);
+        console.log('[Audiobook][Upload] Appended cover file to formData:', coverFile.name, coverFile.size);
+      } else if (coverBlob) {
+        formData.append('cover', coverBlob, 'cover.jpg');
+        console.log('[Audiobook][Upload] Appended embedded cover blob to formData, size:', coverBlob.size);
+      } else {
+        console.log('[Audiobook][Upload] No cover image appended to formData.');
+      }
+      audioFiles.forEach((file, idx) => formData.append(idx, file));
+      // Log all FormData keys
+      for (let pair of formData.entries()) {
+        if (pair[1] instanceof File) {
+          console.log(`[Audiobook][Upload] FormData: ${pair[0]} => File(${pair[1].name}, ${pair[1].size} bytes)`);
+        } else {
+          console.log(`[Audiobook][Upload] FormData: ${pair[0]} =>`, pair[1]);
+        }
+      }
+      try {
+        const uploadRes = await fetch('/api/audiobooks/upload', { method: 'POST', body: formData });
+        if (uploadRes.ok) {
+          const { id } = await uploadRes.json();
+          console.log('[Audiobook][Upload] Upload successful, new audiobook id:', id);
+          await renderLibraryGrid();
+          uploadContainer.style.display = 'none';
+          await loadAudiobook(id);
+          audioError.classList.add('hidden');
+          return;
+        } else {
+          const text = await uploadRes.text();
+          console.error('[Audiobook][Upload] Upload failed:', text);
+          audioError.textContent = 'Upload failed: ' + text;
+          audioError.classList.remove('hidden');
+        }
+      } catch (e) {
+        console.error('[Audiobook] Upload error:', e);
+        audioError.textContent = 'Upload error: ' + e.message;
+        audioError.classList.remove('hidden');
+      }
+      // Set book title
+      if (!bookTitle) {
+        const firstPath = audioFiles[0].webkitRelativePath || audioFiles[0].name;
+        bookTitle = firstPath.split('/')[0] || audioFiles[0].name.split('.')[0];
+      }
+      bookTitleHeader.innerHTML = `<i class="fas fa-headphones"></i> ${bookTitle}`;
+      // Show cover art if found
+      if (coverImgUrl) {
+        albumArt.src = coverImgUrl;
+      } else {
+        albumArt.src = '';
+      }
+      // Build playlist list
+      playlistList.innerHTML = tracks.map((t, idx) => `
+        <div class="song amplitude-song-container amplitude-play-pause amplitude-paused flex items-center gap-4 py-3 cursor-pointer" data-amplitude-song-index="${idx}">
+          <div class="song-meta-data flex-1">
+            <span class="song-title font-semibold">${t.chapter ? `Chapter ${t.chapter}` : `Track ${idx+1}`}: ${t.name}</span>
+            <span class="song-artist text-xs text-gray-600 ml-2">${t.artist}</span>
+            <span class="song-album text-xs text-gray-400 ml-2">${t.album}</span>
+          </div>
+          <span class="song-duration text-xs">${t.duration}</span>
+        </div>
+      `).join('');
+      // Clean up AmplitudeJS before re-initializing
+      if (window.Amplitude && Amplitude.getActiveSongMetadata) {
+        try { Amplitude.stop(); } catch(e){}
+        try { Amplitude.removeSong(0); } catch(e){}
+        try { Amplitude.pause(); } catch(e){}
+        try { Amplitude.destroy(); } catch(e){}
+      }
+      // Now initialize AmplitudeJS with new playlist
+      Amplitude.init({
+        songs: tracks,
+        waveforms: { sample_rate: 50 },
+        continue_next: false
+      });
+      // Animate progress bar color based on progress
+      const playedProgress = document.getElementById('song-played-progress');
+      document.addEventListener('amplitude-song-time-update', function(e){
+        const currentSec = Amplitude.getSongPlayedSeconds();
+        const durationSec = Amplitude.getSongDuration();
+        // update time displays
+        document.getElementById('current-time-display').textContent = formatTime(currentSec);
+        document.getElementById('duration-display').textContent = formatTime(durationSec);
+        // update progress bar
+        const percent = durationSec ? (currentSec / durationSec) * 100 : 0;
+        playedProgress.value = percent;
+        playedProgress.style.background = `linear-gradient(90deg, #3b82f6 0%, #ec4899 ${percent}%)`;
+      });
+      // Skip buttons logic
+      function skipBy(seconds) {
+        const duration = Amplitude.getSongDuration();
+        const current = Amplitude.getSongPlayedSeconds();
+        if (!duration || current === null || current === undefined) {
+          console.log('[skipBy] No duration or current time, cannot skip.', {duration, current});
+          return;
+        }
+        let target = Math.max(0, Math.min(current + seconds, duration));
+        let percent = (target / duration) * 100;
+        console.log('[skipBy] Skipping from', current, 'to', target, 'duration:', duration, 'percent:', percent);
+        Amplitude.setSongPlayedPercentage(percent);
+      }
+      function wireSkipButtons() {
+        // No-op: skip button wiring not implemented yet
+      }
+      wireSkipButtons();
+      // Always re-attach skip listeners if DOM changes (e.g. new playlist loaded)
+      const observer = new MutationObserver(wireSkipButtons);
+      observer.observe(document.getElementById('amplitude-player'), { childList: true, subtree: true });
+    }); // Close the upload input event handler
+}); // End DOMContentLoaded
+</script>
+<!-- <img src="public/cover.jpg"> -->
+<!-- <img src="uploads/9130c3c5-bd75-4d93-a541-ea72ae1986a2/cover.jpg"> -->
+
+</body>
+</html>

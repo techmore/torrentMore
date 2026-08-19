@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Torrent Stream Player</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/webtorrent@latest/webtorrent.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body { font-family: 'Space Grotesk', sans-serif; background: #f8f9fa; }
+    #player-container { max-width: 720px; margin: 40px auto; background: #fff; border-radius: 10px; box-shadow: 0 8px 32px rgba(0,0,0,0.07); padding: 2rem; }
+    video, audio { width: 100%; max-height: 70vh; border-radius: 8px; background: #222; }
+    .status { margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <div id="player-container">
+    <h2 class="text-2xl font-bold mb-4 flex items-center gap-2"><i class="fas fa-play-circle text-blue-500"></i> Torrent Stream Player</h2>
+    <div id="status" class="status text-gray-600 mb-2">Initializing...</div>
+    <div id="peer-info" class="text-xs text-gray-500 mb-4"></div>
+    <div id="media"></div>
+    <div id="controls" class="hidden mt-4 flex gap-4 items-center">
+      <button id="pauseBtn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"><i class="fas fa-pause"></i> Pause</button>
+      <button id="resumeBtn" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"><i class="fas fa-play"></i> Resume</button>
+      <a id="downloadBtn" class="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-blue-100" href="#" download><i class="fas fa-download"></i> Download File</a>
+    </div>
+    <div id="error" class="text-red-500 mt-4 hidden"></div>
+  </div>
+  <script>
+    function getMagnet() {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('magnet') || '';
+    }
+    const statusDiv = document.getElementById('status');
+    const mediaDiv = document.getElementById('media');
+    const controlsDiv = document.getElementById('controls');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const resumeBtn = document.getElementById('resumeBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const peerInfoDiv = document.getElementById('peer-info');
+    const errorDiv = document.getElementById('error');
+    
+    const magnet = getMagnet();
+    console.info('Magnet link:', magnet);
+    if (!magnet) {
+      errorDiv.textContent = 'No magnet link provided.';
+      errorDiv.classList.remove('hidden');
+      statusDiv.textContent = '';
+    } else {
+      statusDiv.textContent = 'Connecting to peers... ' + magnet;
+      const client = new WebTorrent();
+      let peerCount = 0;
+      let peerWarningTimeout;
+      client.add(magnet, torrent => {
+        console.info('Torrent metadata loaded:', {
+          name: torrent.name,
+          files: torrent.files.map(f => ({ name: f.name, length: f.length }))
+        });
+        function updatePeerInfo() {
+          peerInfoDiv.textContent = `Connected WebRTC peers: ${peerCount}`;
+        }
+        torrent.on('wire', wire => {
+          peerCount++;
+          updatePeerInfo();
+        });
+        // Set warning if no peers after 10s
+        peerWarningTimeout = setTimeout(() => {
+          if (peerCount === 0) {
+            peerInfoDiv.textContent = 'No WebRTC peers found. Streaming is only possible if another browser is seeding or a web seed is available.';
+            peerInfoDiv.classList.add('text-red-500');
+          }
+        }, 10000);
+        // Find all streamable media files
+        const mediaFiles = torrent.files.filter(f => f.name.match(/\.(mp4|webm|mp3|m4a|ogg|wav)$/i));
+        console.debug('All media files:', mediaFiles.map(f => ({ name: f.name, length: f.length })));
+        if (!mediaFiles.length) {
+          errorDiv.textContent = 'No streamable media file found in this torrent.';
+          errorDiv.classList.remove('hidden');
+          statusDiv.textContent = '';
+          console.warn('No streamable media file found in this torrent.');
+          return;
+        }
+        // Pick largest file by default
+        let file = mediaFiles.reduce((a, b) => (a.length > b.length ? a : b));
+        console.info('Default selected file:', file.name, file.length);
+        // If multiple, show file picker
+        if (mediaFiles.length > 1) {
+          const select = document.createElement('select');
+          select.className = 'mb-4 px-2 py-1 border rounded';
+          mediaFiles.forEach((f, i) => {
+            const opt = document.createElement('option');
+            opt.value = i;
+            opt.textContent = `${f.name} (${(f.length/1048576).toFixed(2)} MB)`;
+            if (f === file) opt.selected = true;
+            select.appendChild(opt);
+          });
+          statusDiv.innerHTML = 'Select file to stream:';
+          statusDiv.appendChild(select);
+          select.onchange = function() {
+            file = mediaFiles[parseInt(this.value)];
+            console.info('User selected file:', file.name, file.length);
+            playFile(file);
+          };
+        } else {
+          statusDiv.textContent = `Streaming: ${file.name}`;
+        }
+        playFile(file);
+        function playFile(file) {
+          let tag;
+          if (file.name.match(/\.(mp4|webm)$/i)) {
+            tag = document.createElement('video');
+            tag.setAttribute('controls', '');
+            tag.setAttribute('autoplay', '');
+          } else {
+            tag = document.createElement('audio');
+            tag.setAttribute('controls', '');
+            tag.setAttribute('autoplay', '');
+          }
+          mediaDiv.innerHTML = '';
+          mediaDiv.appendChild(tag);
+          file.renderTo(tag, { autoplay: true });
+          controlsDiv.classList.remove('hidden');
+          pauseBtn.onclick = () => { tag.pause(); console.debug('Paused playback'); };
+          resumeBtn.onclick = () => { tag.play(); console.debug('Resumed playback'); };
+          downloadBtn.href = file.url;
+          downloadBtn.download = file.name;
+          console.info('Started streaming:', file.name, file.length);
+        }
+      });
+      client.on('error', err => {
+        errorDiv.textContent = 'Streaming failed: ' + err.message;
+        errorDiv.classList.remove('hidden');
+        statusDiv.textContent = '';
+      });
+    }
+  </script>
+</body>
+</html>
