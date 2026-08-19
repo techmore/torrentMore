@@ -6,8 +6,8 @@
 #   • prints timing for each step
 #
 # Usage:
-#   ./setup.sh                 # use local *.7z if present, else require MAGNET
-#   MAGNET='magnet:?xt=...' ./setup.sh   # download via aria2c (brew install aria2)
+#   ./setup.sh                 # local .7z -> archive.org HTTPS -> magnet
+#   DB_URL/ MAGNET/ ARCHIVE env overrides available
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -15,6 +15,7 @@ DB="tpb.sqlite"
 AUDIO_DB="audiobooks.sqlite"
 ARCHIVE="${ARCHIVE:-$(ls *.7z 2>/dev/null | head -1 || true)}"
 MAGNET="${MAGNET:-$(cat db.magnet 2>/dev/null || true)}"
+DB_URL="${DB_URL:-$(cat db.url 2>/dev/null || true)}"
 
 ts() { date +%s; }
 fmt() { # seconds -> human
@@ -60,6 +61,19 @@ else
     local_s=$(ts)
     7z x -y -so "$ARCHIVE" > "$DB"
     echo "      extracted in $(fmt $(( $(ts) - local_s ))) → $(du -h "$DB" | cut -f1)"
+  elif [ -n "$DB_URL" ]; then
+    echo "[3/4] downloading via HTTPS (archive.org)"
+    local_s=$(ts)
+    mkdir -p .dl
+    aria2c --seed-time=0 --console-log-level=warn --max-connection-per-server=16 -d .dl "$DB_URL"
+    ARCHIVE=$(ls .dl/*.7z 2>/dev/null | head -1)
+    if [ -z "$ARCHIVE" ]; then
+      echo "[3/4] ERROR: no .7z found in download (.dl)"
+      exit 1
+    fi
+    echo "      downloaded in $(fmt $(( $(ts) - local_s ))) → $(du -h "$ARCHIVE" | cut -f1)"
+    7z x -y -so "$ARCHIVE" > "$DB"
+    rm -rf .dl
   elif command -v aria2c >/dev/null 2>&1 && [ -n "$MAGNET" ]; then
     echo "[3/4] downloading via aria2c (magnet)..."
     local_s=$(ts)
