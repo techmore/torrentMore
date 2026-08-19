@@ -14,6 +14,35 @@ A modern, self-hosted torrent search and streaming platform using The Pirate Bay
 
 ---
 
+## One-Command Setup (recommended)
+
+```bash
+brew install aria2     # optional: enables torrent download of the DB dump
+./setup.sh              # provisions venv + tpb.sqlite + FTS5 index (self-contained)
+./serve.sh              # runs on http://localhost:3000
+```
+
+`setup.sh` is self-contained and safe to re-run:
+
+- Creates a Python `venv` and installs `requirements.txt`.
+- Provisions `tpb.sqlite` if missing — extracts a local `*.7z` backup if one is
+  present, otherwise downloads via `aria2c` when a `MAGNET` URL is supplied:
+  `MAGNET="magnet:?xt=..." ./setup.sh`.
+- (Re)builds the FTS5 search index and prints timing for each step.
+
+### Measured build (2026-08-19 — ~19G dump, ~8.57M torrents)
+
+| Step | Time |
+|------|------|
+| Extract `.7z` → `tpb.sqlite` | ~2 min (128s) |
+| FTS5 index rebuild | ~6 min (367s) |
+| **Total fresh build** | **~8.3 min** |
+
+Verified: `SELECT count(*) FROM torrents` returns **8,569,954** and the Flask app
+boots on `:3000` (HTTP 200).
+
+---
+
 ## Getting Started
 
 ### 1. Clone the Repo
