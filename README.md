@@ -38,8 +38,8 @@ brew install aria2     # optional: enables torrent download of the DB dump
 | FTS5 index rebuild | ~6 min (367s) |
 | **Total fresh build** | **~8.3 min** |
 
-Verified: `SELECT count(*) FROM torrents` returns **8,569,954** and the Flask app
-boots on `:3000` (HTTP 200).
+Verified: `SELECT count(*) FROM torrents` returns **8,569,954**, `PRAGMA
+integrity_check` returns `ok`, and the Flask app boots on `:3000` (HTTP 200).
 
 ---
 
