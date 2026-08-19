@@ -1,0 +1,51 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>torrentmore download monitor</title>
+<style>
+body{font-family:system-ui,sans-serif;background:#0f1117;color:#e6e6e6;max-width:640px;margin:40px auto;padding:0 20px}
+h1{font-size:20px}.bar{background:#262a36;border-radius:8px;height:26px;overflow:hidden;margin:14px 0}
+.fill{background:linear-gradient(90deg,#3b82f6,#22d3ee);height:100%;width:0;transition:width .5s}
+.row{display:flex;justify-content:space-between;margin:6px 0;font-size:14px}
+.big{font-size:26px;font-weight:700}
+.muted{color:#8a93a6;font-size:12px}
+#state{padding:10px 14px;border-radius:8px;background:#1a1f2b}
+</style></head>
+<body>
+<h1>📥 torrentmore — DB download monitor</h1>
+<div id="state">
+  <div class="row"><span>Progress</span><span class="big" id="pct">0%</span></div>
+  <div class="bar"><div class="fill" id="fill"></div></div>
+  <div class="row"><span>Downloaded</span><span id="done">0 B</span><span>/</span><span id="total">2.3 GiB</span></div>
+  <div class="row"><span>Speed</span><span id="speed">—</span><span>Peers</span><span id="peers">0</span></div>
+  <div class="row"><span>ETA</span><span id="eta">—</span><span>State</span><span id="st">—</span></div>
+  <div class="row muted" id="msg"></div>
+</div>
+<p class="muted">Auto-refreshes. Leave this tab open.</p>
+<script>
+const RPC='http://127.0.0.1:6800/jsonrpc';
+const MB=s=>s/1048576;
+function fmt(b){b=+b||0;if(b>=1073741824)return (b/1073741824).toFixed(2)+' GiB';return (b/1048576).toFixed(0)+' MiB'}
+async function poll(){
+  try{
+    const r=await fetch(RPC,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({jsonrpc:'2.0',id:'1',method:'aria2.tellActive',params:['token:']})});
+    const j=await r.json(); const gs=j.result||[];
+    if(gs.length===0){document.getElementById('st').textContent='idle'; document.getElementById('msg').textContent='No active transfer — maybe finished or not started.'; return}
+    const g=gs.find(x=>+x.totalLength>0)||gs[0];
+    const dl=+g.completedLength, tot=+g.totalLength, sp=+g.downloadSpeed;
+    const pct=tot?Math.round(dl/tot*100):0;
+    document.getElementById('pct').textContent=pct+'%';
+    document.getElementById('fill').style.width=pct+'%';
+    document.getElementById('done').textContent=fmt(dl);
+    document.getElementById('total').textContent=fmt(tot);
+    document.getElementById('speed').textContent=(sp/1048576).toFixed(1)+' MiB/s';
+    const cons=(g.connections||0);
+    document.getElementById('peers').textContent=cons;
+    document.getElementById('st').textContent=g.status;
+    const rem=tot-dl;
+    if(sp>0&&rem>0)document.getElementById('eta').textContent=Math.ceil(rem/sp)+' s';
+    else document.getElementById('eta').textContent=(sp>0?'—':'stalled');
+    if(dl>=tot && tot>0){document.getElementById('st').textContent='COMPLETE 🎉';document.getElementById('pct').textContent='100%';}
+  }catch(e){document.getElementById('msg').textContent='Cannot reach aria2 RPC ('+e.message+'). Is the download running?'}
+}
+poll();setInterval(poll,2000);
+</script></body></html>

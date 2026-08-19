@@ -63,10 +63,17 @@ else
   elif command -v aria2c >/dev/null 2>&1 && [ -n "$MAGNET" ]; then
     echo "[3/4] downloading via aria2c (magnet)..."
     local_s=$(ts)
-    aria2c --seed-time=0 --console-log-level=warn -d . -o "downloaded.7z" "$MAGNET"
-    echo "      downloaded in $(fmt $(( $(ts) - local_s )))"
-    7z x -y -so downloaded.7z > "$DB"
-    rm -f downloaded.7z
+    mkdir -p .dl
+    aria2c --seed-time=0 --console-log-level=warn -d .dl "$MAGNET"
+    # magnet/torrent files are saved by their info-name, so pick up the archive by glob
+    ARCHIVE=$(ls .dl/*.7z 2>/dev/null | head -1)
+    if [ -z "$ARCHIVE" ]; then
+      echo "[3/4] ERROR: no .7z found in download (.dl)"
+      exit 1
+    fi
+    echo "      downloaded in $(fmt $(( $(ts) - local_s ))) → $(du -h "$ARCHIVE" | cut -f1)"
+    7z x -y -so "$ARCHIVE" > "$DB"
+    rm -rf .dl
   else
     echo "[3/4] ERROR: no $DB, no local .7z, and no aria2/magnet."
     echo "       do one of:"
